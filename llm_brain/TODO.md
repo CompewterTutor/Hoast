@@ -1,7 +1,7 @@
 # Hoast - Development TODO List
 
 ## Phase 1: Project Setup
-- [ ] Initialize Electron project (using Electron Forge or Vite + Electron)
+- [x] Initialize Electron project (using Electron Forge ) 
 - [ ] Set up development environment (hot reloading, dev tools)
 - [ ] Configure project structure (main/renderer processes)
 - [ ] Create basic tray/menubar icon implementation

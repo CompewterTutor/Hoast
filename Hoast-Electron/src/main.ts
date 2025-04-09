@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Tray, Menu, nativeImage, dialog, ipcMain } from 'electron';
 import path from 'node:path';
+import fs from 'node:fs';
 import started from 'electron-squirrel-startup';
 import { HostsFileWriter } from './services/hostsFileWriter';
 import { ParsedHostsFile, HostEntry } from './types/hostsFile';
@@ -55,7 +56,7 @@ export const createTray = () => {
     // Use template image for macOS (supports dark/light mode)
     const iconPath = path.join(__dirname, '../assets/icons/16x16.png');
     const macIcon = nativeImage.createFromPath(iconPath);
-    macIcon.setTemplateImage(true);
+    macIcon.setTemplateImage(true); // Template image support for macOS dark/light modes
     tray = new Tray(macIcon);
   } else if (process.platform === 'win32') {
     // Use ICO for Windows
@@ -71,18 +72,31 @@ export const createTray = () => {
 
   // Create the tray menu
   updateTrayMenu();
+
+  // Add a click handler to show/hide the main window on click (macOS convention)
+  if (process.platform === 'darwin') {
+    tray.on('click', () => {
+      if (mainWindow) {
+        if (mainWindow.isVisible()) {
+          mainWindow.hide();
+        } else {
+          mainWindow.show();
+        }
+      }
+    });
+  }
 };
 
 /**
  * Update the tray menu to reflect current hosts file entries
  */
 function updateTrayMenu(): void {
-  if (!tray || !parsedHostsFile) return;
+  if (!tray) return;
   
   // Create the menu items array
   const menuItems: Electron.MenuItemConstructorOptions[] = [
     { 
-      label: 'Host Entries', 
+      label: 'Hoast - Hosts File Manager',
       enabled: false, 
       type: 'normal' 
     },
@@ -91,45 +105,131 @@ function updateTrayMenu(): void {
     }
   ];
   
-  // Add menu items for each host entry (limit to 10 to avoid cluttering)
-  const hostEntries = parsedHostsFile.entries.slice(0, 10);
-  
-  if (hostEntries.length > 0) {
-    hostEntries.forEach(entry => {
-      // Create a submenu for each host entry
-      menuItems.push({
-        label: `${entry.enabled ? '✓' : '✗'} ${entry.hostname}`,
-        submenu: [
-          {
-            label: entry.enabled ? 'Disable' : 'Enable',
-            click: async () => {
-              await toggleHostEntryWithPermissions(parsedHostsFile!, entry.lineNumber);
-              // Update menu after toggle
-              updateTrayMenu();
-            }
-          },
-          {
-            label: 'Remove',
-            click: async () => {
-              // Ask for confirmation
-              const { response } = await dialog.showMessageBox({
-                type: 'question',
-                buttons: ['Cancel', 'Remove'],
-                defaultId: 0,
-                title: 'Confirm Removal',
-                message: `Are you sure you want to remove "${entry.hostname}" from your hosts file?`
-              });
-              
-              if (response === 1) { // 1 = Remove button
-                await removeHostEntryWithPermissions(parsedHostsFile!, entry.lineNumber);
-                // Update menu after removal
+  // Add menu items for each host entry (limit to a reasonable number to avoid cluttering)
+  if (parsedHostsFile?.entries && parsedHostsFile.entries.length > 0) {
+    // Group entries for better organization
+    const enabledEntries = parsedHostsFile.entries.filter(entry => entry.enabled);
+    const disabledEntries = parsedHostsFile.entries.filter(entry => !entry.enabled);
+    
+    // Add enabled entries
+    if (enabledEntries.length > 0) {
+      menuItems.push({ 
+        label: 'Enabled Entries',
+        enabled: false,
+        type: 'normal'
+      });
+      
+      enabledEntries.slice(0, 10).forEach(entry => {
+        menuItems.push({
+          label: `✅ ${entry.hostname}`,
+          submenu: [
+            {
+              label: `IP: ${entry.ip}`,
+              enabled: false
+            },
+            { type: 'separator' },
+            {
+              label: 'Disable',
+              click: async () => {
+                await toggleHostEntryWithPermissions(parsedHostsFile!, entry.lineNumber);
+                // Reload hosts file and update menu after toggle
+                parsedHostsFile = await hostsFileParser.parseHostsFile();
                 updateTrayMenu();
               }
+            },
+            {
+              label: 'Remove',
+              click: async () => {
+                // Ask for confirmation
+                const { response } = await dialog.showMessageBox({
+                  type: 'question',
+                  buttons: ['Cancel', 'Remove'],
+                  defaultId: 0,
+                  title: 'Confirm Removal',
+                  message: `Are you sure you want to remove "${entry.hostname}" from your hosts file?`
+                });
+                
+                if (response === 1) { // 1 = Remove button
+                  await removeHostEntryWithPermissions(parsedHostsFile!, entry.lineNumber);
+                  // Reload hosts file and update menu after removal
+                  parsedHostsFile = await hostsFileParser.parseHostsFile();
+                  updateTrayMenu();
+                }
+              }
             }
-          }
-        ]
+          ]
+        });
       });
-    });
+      
+      // Show how many more are hidden if we're limiting the display
+      if (enabledEntries.length > 10) {
+        menuItems.push({
+          label: `... and ${enabledEntries.length - 10} more enabled entries`,
+          enabled: false
+        });
+      }
+      
+      menuItems.push({ type: 'separator' });
+    }
+    
+    // Add disabled entries
+    if (disabledEntries.length > 0) {
+      menuItems.push({ 
+        label: 'Disabled Entries',
+        enabled: false,
+        type: 'normal'
+      });
+      
+      disabledEntries.slice(0, 10).forEach(entry => {
+        menuItems.push({
+          label: `❌ ${entry.hostname}`,
+          submenu: [
+            {
+              label: `IP: ${entry.ip}`,
+              enabled: false
+            },
+            { type: 'separator' },
+            {
+              label: 'Enable',
+              click: async () => {
+                await toggleHostEntryWithPermissions(parsedHostsFile!, entry.lineNumber);
+                // Reload hosts file and update menu after toggle
+                parsedHostsFile = await hostsFileParser.parseHostsFile();
+                updateTrayMenu();
+              }
+            },
+            {
+              label: 'Remove',
+              click: async () => {
+                // Ask for confirmation
+                const { response } = await dialog.showMessageBox({
+                  type: 'question',
+                  buttons: ['Cancel', 'Remove'],
+                  defaultId: 0,
+                  title: 'Confirm Removal',
+                  message: `Are you sure you want to remove "${entry.hostname}" from your hosts file?`
+                });
+                
+                if (response === 1) { // 1 = Remove button
+                  await removeHostEntryWithPermissions(parsedHostsFile!, entry.lineNumber);
+                  // Reload hosts file and update menu after removal
+                  parsedHostsFile = await hostsFileParser.parseHostsFile();
+                  updateTrayMenu();
+                }
+              }
+            }
+          ]
+        });
+      });
+      
+      // Show how many more are hidden if we're limiting the display
+      if (disabledEntries.length > 10) {
+        menuItems.push({
+          label: `... and ${disabledEntries.length - 10} more disabled entries`,
+          enabled: false
+        });
+      }
+    }
     
     menuItems.push({ type: 'separator' });
   }
@@ -138,16 +238,7 @@ function updateTrayMenu(): void {
   menuItems.push(
     { 
       label: 'Add New Entry...', 
-      click: async () => {
-        // Show dialog to add new entry
-        if (mainWindow) {
-          mainWindow.show();
-          mainWindow.webContents.send('menu:add-new-entry');
-        } else {
-          // Simple prompt if window not available
-          showAddHostEntryDialog();
-        }
-      } 
+      click: showAddHostEntryDialog
     },
     { 
       label: 'Refresh Hosts File', 
@@ -171,11 +262,20 @@ function updateTrayMenu(): void {
       type: 'separator' 
     },
     { 
+      label: 'Show Main Window', 
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show();
+        }
+      } 
+    },
+    { 
       label: 'Preferences...', 
       click: () => {
         // Show preferences window
         if (mainWindow) {
           mainWindow.show();
+          mainWindow.webContents.send('menu:show-preferences');
         }
       } 
     },
@@ -196,35 +296,228 @@ function updateTrayMenu(): void {
 }
 
 /**
- * Show a simple dialog to add a new host entry
+ * Show a dialog to add a new host entry
  */
 async function showAddHostEntryDialog(): Promise<void> {
   if (!parsedHostsFile) return;
   
-  // Show a dialog to enter details
-  const result = await dialog.showMessageBox({
-    type: 'info',
-    title: 'Add Host Entry',
-    message: 'Add a new hosts file entry',
-    detail: 'Would you like to add a new entry to your hosts file?',
-    buttons: ['Cancel', 'Add Entry'],
-    defaultId: 1
+  // Create a custom input dialog using BrowserWindow
+  const inputWindow = new BrowserWindow({
+    width: 480,
+    height: 380,
+    title: 'Add New Host Entry',
+    parent: mainWindow || undefined,
+    modal: true,
+    show: false,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js')
+    }
+  });
+
+  // Load a simple form HTML
+  const htmlContent = `
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'">
+    <title>Add New Host Entry</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+        padding: 20px;
+        color: #333;
+      }
+      h2 {
+        margin-top: 0;
+        margin-bottom: 20px;
+        font-size: 18px;
+      }
+      .form-group {
+        margin-bottom: 15px;
+      }
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 500;
+      }
+      input[type="text"] {
+        width: 100%;
+        padding: 8px;
+        box-sizing: border-box;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+      .checkbox-group {
+        margin-top: 10px;
+      }
+      .buttons {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 20px;
+      }
+      button {
+        padding: 8px 16px;
+        border-radius: 4px;
+        border: none;
+        cursor: pointer;
+      }
+      button.cancel {
+        background-color: #f1f1f1;
+      }
+      button.submit {
+        background-color: #0078d4;
+        color: white;
+      }
+      .error {
+        color: red;
+        font-size: 14px;
+        margin-top: 4px;
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Add New Host Entry</h2>
+    <form id="hostEntryForm">
+      <div class="form-group">
+        <label for="ip">IP Address:</label>
+        <input type="text" id="ip" name="ip" placeholder="e.g., 127.0.0.1" required>
+        <div id="ipError" class="error">Please enter a valid IP address</div>
+      </div>
+      <div class="form-group">
+        <label for="hostname">Hostname:</label>
+        <input type="text" id="hostname" name="hostname" placeholder="e.g., example.local" required>
+        <div id="hostnameError" class="error">Please enter a valid hostname</div>
+      </div>
+      <div class="form-group">
+        <label for="aliases">Aliases (optional, space separated):</label>
+        <input type="text" id="aliases" name="aliases" placeholder="e.g., www.example.local api.example.local">
+        <div id="aliasesError" class="error">Invalid aliases format</div>
+      </div>
+      <div class="form-group">
+        <label for="comment">Comment (optional):</label>
+        <input type="text" id="comment" name="comment" placeholder="e.g., Development server">
+      </div>
+      <div class="checkbox-group">
+        <input type="checkbox" id="enabled" name="enabled" checked>
+        <label for="enabled">Enabled (unchecked will create commented entry)</label>
+      </div>
+      <div class="buttons">
+        <button type="button" id="cancelButton" class="cancel">Cancel</button>
+        <button type="submit" id="submitButton" class="submit">Add Entry</button>
+      </div>
+    </form>
+    <script>
+      const form = document.getElementById('hostEntryForm');
+      const ipInput = document.getElementById('ip');
+      const hostnameInput = document.getElementById('hostname');
+      const aliasesInput = document.getElementById('aliases');
+      const commentInput = document.getElementById('comment');
+      const enabledCheckbox = document.getElementById('enabled');
+      const cancelButton = document.getElementById('cancelButton');
+      
+      // IP validation regex
+      function isValidIp(ip) {
+        // IPv4
+        const ipv4Regex = /^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+        // Simple IPv6 regex (for UI validation)
+        const ipv6Regex = /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^::$|^::1$|^([0-9a-fA-F]{1,4}::?){1,7}([0-9a-fA-F]{1,4})?$/;
+        // localhost special case
+        return ipv4Regex.test(ip) || ipv6Regex.test(ip) || ip === 'localhost';
+      }
+      
+      // Hostname validation regex
+      function isValidHostname(hostname) {
+        const regex = /^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])*(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])*)*$/;
+        return hostname.length <= 255 && regex.test(hostname);
+      }
+      
+      cancelButton.addEventListener('click', () => {
+        window.electronAPI.cancelAddEntry();
+      });
+      
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        
+        // Validate inputs
+        let isValid = true;
+        
+        // IP validation
+        if (!ipInput.value || !isValidIp(ipInput.value)) {
+          document.getElementById('ipError').style.display = 'block';
+          isValid = false;
+        } else {
+          document.getElementById('ipError').style.display = 'none';
+        }
+        
+        // Hostname validation
+        if (!hostnameInput.value || !isValidHostname(hostnameInput.value)) {
+          document.getElementById('hostnameError').style.display = 'block';
+          isValid = false;
+        } else {
+          document.getElementById('hostnameError').style.display = 'none';
+        }
+        
+        // Aliases validation (if provided)
+        const aliases = aliasesInput.value.trim() ? aliasesInput.value.trim().split(/\\s+/) : [];
+        const hasInvalidAlias = aliases.some(alias => !isValidHostname(alias));
+        if (hasInvalidAlias) {
+          document.getElementById('aliasesError').style.display = 'block';
+          isValid = false;
+        } else {
+          document.getElementById('aliasesError').style.display = 'none';
+        }
+        
+        if (isValid) {
+          // Submit the data
+          window.electronAPI.submitNewEntry({
+            ip: ipInput.value,
+            hostname: hostnameInput.value,
+            aliases: aliases,
+            comment: commentInput.value ? '# ' + commentInput.value : undefined,
+            enabled: enabledCheckbox.checked
+          });
+        }
+      });
+    </script>
+  </body>
+  </html>
+  `;
+  
+  // Write HTML to a temporary file
+  const tempDir = app.getPath('temp');
+  const tempFilePath = path.join(tempDir, `add-host-entry-${Date.now()}.html`);
+  await fs.promises.writeFile(tempFilePath, htmlContent, 'utf-8');
+  
+  // Load the temp file and delete it after loading
+  await inputWindow.loadFile(tempFilePath);
+  fs.promises.unlink(tempFilePath).catch(console.error);
+  
+  // Register IPC handlers for the form
+  ipcMain.handleOnce('add-entry:submit', async (_event, entry: Omit<HostEntry, 'lineNumber' | 'raw'>) => {
+    inputWindow.close();
+    
+    // Add the entry
+    await addHostEntryWithPermissions(parsedHostsFile!, entry);
+    
+    // Refresh the hosts file
+    parsedHostsFile = await hostsFileParser.parseHostsFile();
+    updateTrayMenu();
   });
   
-  if (result.response !== 1) return;
+  ipcMain.handleOnce('add-entry:cancel', () => {
+    inputWindow.close();
+  });
   
-  // Open the main window and send a message to show the add entry form
-  if (mainWindow) {
-    mainWindow.show();
-    mainWindow.webContents.send('menu:add-new-entry');
-  } else {
-    // Fallback if window isn't available - we'd need to create a custom dialog
-    // For now, just show an error that the main window is needed
-    dialog.showErrorBox(
-      'Cannot Add Entry',
-      'The main application window is needed to add entries. Please restart the application if you don\'t see it.'
-    );
-  }
+  // Show the window
+  inputWindow.show();
 }
 
 // This method will be called when Electron has finished

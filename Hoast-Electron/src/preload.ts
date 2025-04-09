@@ -19,6 +19,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeHostEntry: (lineNumber: number) => 
     ipcRenderer.invoke('hosts:remove-entry', lineNumber),
   
+  // Add host entry dialog functions
+  submitNewEntry: (entry: Omit<HostEntry, 'lineNumber' | 'raw'>) =>
+    ipcRenderer.invoke('add-entry:submit', entry),
+  cancelAddEntry: () => ipcRenderer.invoke('add-entry:cancel'),
+  
+  // Menu action events
+  onShowPreferences: (callback: () => void) => {
+    ipcRenderer.on('menu:show-preferences', () => callback());
+    return () => {
+      ipcRenderer.removeAllListeners('menu:show-preferences');
+    };
+  },
+  
   // Event listeners
   onHostsFileChanged: (callback: (parsedFile: ParsedHostsFile) => void) => {
     ipcRenderer.on('hosts:file-changed', (_event, parsedFile) => callback(parsedFile));

@@ -18,27 +18,27 @@
 - [x] Create hosts file writer service
   - [x] Convert structured data back to text
   - [x] Write to file with proper formatting
-  - [ ] Handle permission elevation
+  - [x] Handle permission elevation
 - [ ] Set up configuration manager for app settings
 
 ## Phase 3: UI Implementation
-- [ ] Design and implement tray/menubar interface
-  - [ ] Create dynamic menu with host entries
-  - [ ] Implement enable/disable toggles
-  - [ ] Add "Add New Entry" functionality
-  - [ ] Add "Refresh" option
+- [x] Design and implement tray/menubar interface
+  - [x] Create dynamic menu with host entries
+  - [x] Implement enable/disable toggles
+  - [x] Add "Add New Entry" functionality
+  - [x] Add "Refresh" option
 - [ ] Create preferences/settings window
   - [ ] Launch on startup option
   - [ ] Backup/restore functionality
   - [ ] UI preferences
 
 ## Phase 4: System Integration
-- [ ] Implement permission elevation for writing to `/etc/hosts`
-  - [ ] Research and integrate sudo-prompt or electron-sudo
-  - [ ] Add error handling for permission failures
+- [x] Implement permission elevation for writing to `/etc/hosts`
+  - [x] Research and integrate sudo-prompt or electron-sudo
+  - [x] Add error handling for permission failures
 - [ ] Add support for DNS cache flushing
 - [ ] Implement auto-launch on system startup
-- [ ] Handle external file changes
+- [x] Handle external file changes
 
 ## Phase 5: Enhanced Features
 - [ ] Add host entry grouping functionality

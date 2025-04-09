@@ -33,13 +33,27 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
   - Includes backup functionality for safety
   - Emits events for success and error cases
   - Includes comprehensive tests for all functionality
-  - Permission elevation handling marked as TODO for future implementation
+- Permission elevation handling implemented
+  - Uses sudo-prompt for cross-platform permission elevation
+  - Creates temporary files for operations requiring elevated permissions
+  - Platform-specific command execution
+  - Error handling for permission failures
+- Enhanced tray menu functionality implemented
+  - Dynamic menu items for host entries
+  - Visual indicators for enabled/disabled entries (✅/❌)
+  - Organized grouping of enabled and disabled entries
+  - Entry-specific context menus with enable/disable and remove options
+  - Add New Entry functionality with form validation
+  - Refresh functionality to reload the hosts file
+  - Platform-specific optimizations (icons, behavior)
+  - Confirmation dialogs for destructive actions
+  - Success and error notifications
 
 ## Tech Stack
 - **Framework**: Electron with Electron Forge
 - **Build Tools**: Vite, TypeScript
 - **Target Platforms**: macOS, Windows, Linux
-- **Key Dependencies**: electron, electron-forge, electron-squirrel-startup, chokidar
+- **Key Dependencies**: electron, electron-forge, electron-squirrel-startup, chokidar, sudo-prompt
 
 ## Development Environment
 - Project initialized with Electron Forge
@@ -51,6 +65,7 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
 ## Architecture Notes
 - **Main Process**: Handles system tray integration, file operations, and permission elevation
   - System tray implementation with context menu in place
+  - Dynamic tray menu with host entries and actions
   - Main window hidden by default (tray-based app)
 - **Renderer Process**: Will manage UI windows (preferences, settings)
 - **Core Services**:
@@ -70,7 +85,10 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
     - Handles operations like adding, updating, removing entries
     - Creates backups before writing changes
     - Preserves formatting and comments
-  - Permission elevation handler (to be implemented)
+  - Permission elevation handler (implemented)
+    - Uses sudo-prompt for cross-platform elevation
+    - Platform-specific command execution
+    - Temporary file creation for elevated operations
   - Configuration manager (to be implemented)
 
 ## Important Decisions
@@ -81,8 +99,11 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
 - Using TypeScript for improved type safety and developer experience
 - Using Electron Forge with Vite for better development experience and faster builds
 - Using chokidar for file watching due to its reliability across platforms
+- Using sudo-prompt for permission elevation due to its cross-platform support
 
 ## Next Steps
 - Set up configuration manager for app settings
-- Implement permission elevation for writing to hosts file
-- Create tray menu UI for interacting with host entries
+- Create preferences/settings window
+- Add support for DNS cache flushing
+- Implement auto-launch on system startup
+- Add host entry grouping functionality

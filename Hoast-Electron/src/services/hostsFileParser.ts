@@ -275,3 +275,6 @@ export class HostsFileService extends EventEmitter {
     return this.fileWatcher !== null && this.fileWatcher.isActive();
   }
 }
+
+// Export the class with an alias for backward compatibility
+export { HostsFileService as HostsFileParser };

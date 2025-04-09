@@ -15,9 +15,9 @@
   - [x] Detect commented/uncommented entries
   - [x] Preserve formatting and comments
 - [x] Implement file watcher for external changes
-- [ ] Create hosts file writer service
-  - [ ] Convert structured data back to text
-  - [ ] Write to file with proper formatting
+- [x] Create hosts file writer service
+  - [x] Convert structured data back to text
+  - [x] Write to file with proper formatting
   - [ ] Handle permission elevation
 - [ ] Set up configuration manager for app settings
 

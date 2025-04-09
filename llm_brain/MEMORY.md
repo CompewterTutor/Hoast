@@ -26,6 +26,14 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
   - Integrated with the hosts file parser service
   - Provides event-based notifications for application-wide sync
   - Includes comprehensive tests for the functionality
+- Hosts file writer service implemented
+  - Converts structured data back to text format with formatting preserved
+  - Provides methods for writing changes to the hosts file
+  - Supports common operations (add, update, remove, toggle entries)
+  - Includes backup functionality for safety
+  - Emits events for success and error cases
+  - Includes comprehensive tests for all functionality
+  - Permission elevation handling marked as TODO for future implementation
 
 ## Tech Stack
 - **Framework**: Electron with Electron Forge
@@ -56,6 +64,12 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
     - Uses chokidar for efficient cross-platform watching
     - Updates application state when file changes
     - Uses debouncing to prevent multiple rapid events
+  - Hosts file writer service (implemented)
+    - Converts structured data back to text
+    - Writes changes to hosts file
+    - Handles operations like adding, updating, removing entries
+    - Creates backups before writing changes
+    - Preserves formatting and comments
   - Permission elevation handler (to be implemented)
   - Configuration manager (to be implemented)
 
@@ -69,5 +83,6 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
 - Using chokidar for file watching due to its reliability across platforms
 
 ## Next Steps
-- Create hosts file writer service
 - Set up configuration manager for app settings
+- Implement permission elevation for writing to hosts file
+- Create tray menu UI for interacting with host entries

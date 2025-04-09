@@ -6,6 +6,8 @@ import { HostsFileWriter } from './services/hostsFileWriter';
 import { ParsedHostsFile, HostEntry } from './types/hostsFile';
 import { HostsFileParser } from './services/hostsFileParser';
 import { HostsFileWatcher, HostsFileWatcherEvent } from './services/hostsFileWatcher';
+import { ConfigurationManager } from './services/configurationManager';
+import { AppConfiguration } from './types/configuration';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -19,6 +21,8 @@ const hostsFileWriter = new HostsFileWriter();
 const hostsFileParser = new HostsFileParser();
 let hostsFileWatcher: HostsFileWatcher | null = null;
 let parsedHostsFile: ParsedHostsFile | null = null;
+let configManager: ConfigurationManager = new ConfigurationManager();
+let appConfig: AppConfiguration;
 
 export const createWindow = () => {
   // Create the browser window.
@@ -107,82 +111,146 @@ function updateTrayMenu(): void {
   
   // Add menu items for each host entry (limit to a reasonable number to avoid cluttering)
   if (parsedHostsFile?.entries && parsedHostsFile.entries.length > 0) {
-    // Group entries for better organization
-    const enabledEntries = parsedHostsFile.entries.filter(entry => entry.enabled);
-    const disabledEntries = parsedHostsFile.entries.filter(entry => !entry.enabled);
+    // Group entries based on user preference
+    const maxDisplayEntries = appConfig?.ui?.maxEntriesInTrayMenu || 10;
+    const shouldGroupByStatus = appConfig?.ui?.groupEntriesByStatus !== false;
     
-    // Add enabled entries
-    if (enabledEntries.length > 0) {
-      menuItems.push({ 
-        label: 'Enabled Entries',
-        enabled: false,
-        type: 'normal'
-      });
+    if (shouldGroupByStatus) {
+      // Group entries by enabled/disabled status
+      const enabledEntries = parsedHostsFile.entries.filter(entry => entry.enabled);
+      const disabledEntries = parsedHostsFile.entries.filter(entry => !entry.enabled);
       
-      enabledEntries.slice(0, 10).forEach(entry => {
-        menuItems.push({
-          label: `✅ ${entry.hostname}`,
-          submenu: [
-            {
-              label: `IP: ${entry.ip}`,
-              enabled: false
-            },
-            { type: 'separator' },
-            {
-              label: 'Disable',
-              click: async () => {
-                await toggleHostEntryWithPermissions(parsedHostsFile!, entry.lineNumber);
-                // Reload hosts file and update menu after toggle
-                parsedHostsFile = await hostsFileParser.parseHostsFile();
-                updateTrayMenu();
-              }
-            },
-            {
-              label: 'Remove',
-              click: async () => {
-                // Ask for confirmation
-                const { response } = await dialog.showMessageBox({
-                  type: 'question',
-                  buttons: ['Cancel', 'Remove'],
-                  defaultId: 0,
-                  title: 'Confirm Removal',
-                  message: `Are you sure you want to remove "${entry.hostname}" from your hosts file?`
-                });
-                
-                if (response === 1) { // 1 = Remove button
+      // Add enabled entries
+      if (enabledEntries.length > 0) {
+        menuItems.push({ 
+          label: 'Enabled Entries',
+          enabled: false,
+          type: 'normal'
+        });
+        
+        enabledEntries.slice(0, maxDisplayEntries).forEach(entry => {
+          menuItems.push({
+            label: `✅ ${entry.hostname}`,
+            submenu: [
+              {
+                label: `IP: ${entry.ip}`,
+                enabled: false
+              },
+              { type: 'separator' },
+              {
+                label: 'Disable',
+                click: async () => {
+                  await toggleHostEntryWithPermissions(parsedHostsFile!, entry.lineNumber);
+                  // Reload hosts file and update menu after toggle
+                  parsedHostsFile = await hostsFileParser.parseHostsFile();
+                  updateTrayMenu();
+                }
+              },
+              {
+                label: 'Remove',
+                click: async () => {
+                  // Only show confirmation if user has it enabled
+                  if (appConfig?.ui?.showConfirmationDialogs !== false) {
+                    const { response } = await dialog.showMessageBox({
+                      type: 'question',
+                      buttons: ['Cancel', 'Remove'],
+                      defaultId: 0,
+                      title: 'Confirm Removal',
+                      message: `Are you sure you want to remove "${entry.hostname}" from your hosts file?`
+                    });
+                    
+                    if (response !== 1) return; // 1 = Remove button
+                  }
+                  
                   await removeHostEntryWithPermissions(parsedHostsFile!, entry.lineNumber);
                   // Reload hosts file and update menu after removal
                   parsedHostsFile = await hostsFileParser.parseHostsFile();
                   updateTrayMenu();
                 }
               }
-            }
-          ]
+            ]
+          });
         });
-      });
-      
-      // Show how many more are hidden if we're limiting the display
-      if (enabledEntries.length > 10) {
-        menuItems.push({
-          label: `... and ${enabledEntries.length - 10} more enabled entries`,
-          enabled: false
-        });
+        
+        // Show how many more are hidden if we're limiting the display
+        if (enabledEntries.length > maxDisplayEntries) {
+          menuItems.push({
+            label: `... and ${enabledEntries.length - maxDisplayEntries} more enabled entries`,
+            enabled: false
+          });
+        }
+        
+        menuItems.push({ type: 'separator' });
       }
       
-      menuItems.push({ type: 'separator' });
-    }
-    
-    // Add disabled entries
-    if (disabledEntries.length > 0) {
-      menuItems.push({ 
-        label: 'Disabled Entries',
-        enabled: false,
-        type: 'normal'
-      });
+      // Add disabled entries
+      if (disabledEntries.length > 0) {
+        menuItems.push({ 
+          label: 'Disabled Entries',
+          enabled: false,
+          type: 'normal'
+        });
+        
+        disabledEntries.slice(0, maxDisplayEntries).forEach(entry => {
+          menuItems.push({
+            label: `❌ ${entry.hostname}`,
+            submenu: [
+              {
+                label: `IP: ${entry.ip}`,
+                enabled: false
+              },
+              { type: 'separator' },
+              {
+                label: 'Enable',
+                click: async () => {
+                  await toggleHostEntryWithPermissions(parsedHostsFile!, entry.lineNumber);
+                  // Reload hosts file and update menu after toggle
+                  parsedHostsFile = await hostsFileParser.parseHostsFile();
+                  updateTrayMenu();
+                }
+              },
+              {
+                label: 'Remove',
+                click: async () => {
+                  // Only show confirmation if user has it enabled
+                  if (appConfig?.ui?.showConfirmationDialogs !== false) {
+                    const { response } = await dialog.showMessageBox({
+                      type: 'question',
+                      buttons: ['Cancel', 'Remove'],
+                      defaultId: 0,
+                      title: 'Confirm Removal',
+                      message: `Are you sure you want to remove "${entry.hostname}" from your hosts file?`
+                    });
+                    
+                    if (response !== 1) return; // 1 = Remove button
+                  }
+                  
+                  await removeHostEntryWithPermissions(parsedHostsFile!, entry.lineNumber);
+                  // Reload hosts file and update menu after removal
+                  parsedHostsFile = await hostsFileParser.parseHostsFile();
+                  updateTrayMenu();
+                }
+              }
+            ]
+          });
+        });
+        
+        // Show how many more are hidden if we're limiting the display
+        if (disabledEntries.length > maxDisplayEntries) {
+          menuItems.push({
+            label: `... and ${disabledEntries.length - maxDisplayEntries} more disabled entries`,
+            enabled: false
+          });
+        }
+      }
+    } else {
+      // Don't group, just show all entries in order
+      const allEntries = parsedHostsFile.entries;
       
-      disabledEntries.slice(0, 10).forEach(entry => {
+      allEntries.slice(0, maxDisplayEntries).forEach(entry => {
+        const statusIcon = entry.enabled ? '✅' : '❌';
         menuItems.push({
-          label: `❌ ${entry.hostname}`,
+          label: `${statusIcon} ${entry.hostname}`,
           submenu: [
             {
               label: `IP: ${entry.ip}`,
@@ -190,7 +258,7 @@ function updateTrayMenu(): void {
             },
             { type: 'separator' },
             {
-              label: 'Enable',
+              label: entry.enabled ? 'Disable' : 'Enable',
               click: async () => {
                 await toggleHostEntryWithPermissions(parsedHostsFile!, entry.lineNumber);
                 // Reload hosts file and update menu after toggle
@@ -201,21 +269,23 @@ function updateTrayMenu(): void {
             {
               label: 'Remove',
               click: async () => {
-                // Ask for confirmation
-                const { response } = await dialog.showMessageBox({
-                  type: 'question',
-                  buttons: ['Cancel', 'Remove'],
-                  defaultId: 0,
-                  title: 'Confirm Removal',
-                  message: `Are you sure you want to remove "${entry.hostname}" from your hosts file?`
-                });
-                
-                if (response === 1) { // 1 = Remove button
-                  await removeHostEntryWithPermissions(parsedHostsFile!, entry.lineNumber);
-                  // Reload hosts file and update menu after removal
-                  parsedHostsFile = await hostsFileParser.parseHostsFile();
-                  updateTrayMenu();
+                // Only show confirmation if user has it enabled
+                if (appConfig?.ui?.showConfirmationDialogs !== false) {
+                  const { response } = await dialog.showMessageBox({
+                    type: 'question',
+                    buttons: ['Cancel', 'Remove'],
+                    defaultId: 0,
+                    title: 'Confirm Removal',
+                    message: `Are you sure you want to remove "${entry.hostname}" from your hosts file?`
+                  });
+                  
+                  if (response !== 1) return; // 1 = Remove button
                 }
+                
+                await removeHostEntryWithPermissions(parsedHostsFile!, entry.lineNumber);
+                // Reload hosts file and update menu after removal
+                parsedHostsFile = await hostsFileParser.parseHostsFile();
+                updateTrayMenu();
               }
             }
           ]
@@ -223,9 +293,9 @@ function updateTrayMenu(): void {
       });
       
       // Show how many more are hidden if we're limiting the display
-      if (disabledEntries.length > 10) {
+      if (allEntries.length > maxDisplayEntries) {
         menuItems.push({
-          label: `... and ${disabledEntries.length - 10} more disabled entries`,
+          label: `... and ${allEntries.length - maxDisplayEntries} more entries`,
           enabled: false
         });
       }
@@ -466,7 +536,7 @@ async function showAddHostEntryDialog(): Promise<void> {
         }
         
         // Aliases validation (if provided)
-        const aliases = aliasesInput.value.trim() ? aliasesInput.value.trim().split(/\\s+/) : [];
+        const aliases = aliasesInput.value.trim() ? aliasesInput.value.trim().split(/\s+/) : [];
         const hasInvalidAlias = aliases.some(alias => !isValidHostname(alias));
         if (hasInvalidAlias) {
           document.getElementById('aliasesError').style.display = 'block';
@@ -523,10 +593,14 @@ async function showAddHostEntryDialog(): Promise<void> {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 app.whenReady().then(async () => {
+  // Load configuration first
+  await initConfiguration();
+  
+  // Then create UI components
   createWindow();
   createTray();
   
-  // Load hosts file on startup
+  // Load hosts file
   await initHostsFile();
   
   // Register IPC handlers for hosts file operations
@@ -567,8 +641,12 @@ app.on('activate', () => {
  * based on the current platform and user preferences
  */
 function needsElevatedPermissions(): boolean {
-  // In a real app, we would check the user preferences first
-  // For now, we'll just return true for platforms that typically need elevation
+  // Check user preferences if configured to always use elevated permissions
+  if (appConfig?.system?.alwaysUseElevatedPermissions) {
+    return true;
+  }
+  
+  // Otherwise use platform-based default behavior
   return process.platform === 'win32' || process.platform === 'darwin' || process.platform === 'linux';
 }
 
@@ -601,11 +679,16 @@ async function addHostEntryWithPermissions(parsedFile: ParsedHostsFile, newEntry
     const useElevated = needsElevatedPermissions();
     const result = await hostsFileWriter.addHostEntry(parsedFile, newEntry, { 
       useElevatedPermissions: useElevated,
-      createBackup: true
+      createBackup: appConfig?.hostsFile?.createBackups ?? true
     });
     
     if (result.success) {
       showHostsFileSuccess(`Successfully added host entry: ${newEntry.hostname}`);
+      
+      // Check if we should flush DNS cache
+      if (appConfig?.system?.flushDNSOnChange) {
+        await flushDNSCache();
+      }
     } else if (result.error) {
       showHostsFileError(result.error);
     }
@@ -622,11 +705,16 @@ async function updateHostEntryWithPermissions(parsedFile: ParsedHostsFile, updat
     const useElevated = needsElevatedPermissions();
     const result = await hostsFileWriter.updateHostEntry(parsedFile, updatedEntry, { 
       useElevatedPermissions: useElevated,
-      createBackup: true
+      createBackup: appConfig?.hostsFile?.createBackups ?? true
     });
     
     if (result.success) {
       showHostsFileSuccess(`Successfully updated host entry: ${updatedEntry.hostname}`);
+      
+      // Check if we should flush DNS cache
+      if (appConfig?.system?.flushDNSOnChange) {
+        await flushDNSCache();
+      }
     } else if (result.error) {
       showHostsFileError(result.error);
     }
@@ -643,11 +731,16 @@ async function toggleHostEntryWithPermissions(parsedFile: ParsedHostsFile, lineN
     const useElevated = needsElevatedPermissions();
     const result = await hostsFileWriter.toggleHostEntry(parsedFile, lineNumber, { 
       useElevatedPermissions: useElevated,
-      createBackup: true
+      createBackup: appConfig?.hostsFile?.createBackups ?? true
     });
     
     if (result.success) {
       showHostsFileSuccess(`Successfully toggled host entry`);
+      
+      // Check if we should flush DNS cache
+      if (appConfig?.system?.flushDNSOnChange) {
+        await flushDNSCache();
+      }
     } else if (result.error) {
       showHostsFileError(result.error);
     }
@@ -664,16 +757,106 @@ async function removeHostEntryWithPermissions(parsedFile: ParsedHostsFile, lineN
     const useElevated = needsElevatedPermissions();
     const result = await hostsFileWriter.removeHostEntry(parsedFile, lineNumber, { 
       useElevatedPermissions: useElevated,
-      createBackup: true
+      createBackup: appConfig?.hostsFile?.createBackups ?? true
     });
     
     if (result.success) {
       showHostsFileSuccess(`Successfully removed host entry`);
+      
+      // Check if we should flush DNS cache
+      if (appConfig?.system?.flushDNSOnChange) {
+        await flushDNSCache();
+      }
     } else if (result.error) {
       showHostsFileError(result.error);
     }
   } catch (error) {
     showHostsFileError(error instanceof Error ? error : new Error(String(error)));
+  }
+}
+
+/**
+ * Flushes the DNS cache based on the current platform
+ */
+async function flushDNSCache(): Promise<void> {
+  try {
+    let command: string;
+    let args: string[];
+    
+    // Different commands based on platform
+    if (process.platform === 'darwin') {
+      // macOS
+      command = 'sudo';
+      args = ['dscacheutil', '-flushcache'];
+      
+      // Also need to restart mDNSResponder on macOS
+      await hostsFileWriter.executeWithElevatedPrivileges(
+        command, args, 'Flushing DNS cache'
+      );
+      
+      await hostsFileWriter.executeWithElevatedPrivileges(
+        'sudo', ['killall', '-HUP', 'mDNSResponder'], 'Restarting DNS service'
+      );
+      
+    } else if (process.platform === 'win32') {
+      // Windows
+      command = 'ipconfig';
+      args = ['/flushdns'];
+      
+      await hostsFileWriter.executeWithElevatedPrivileges(
+        command, args, 'Flushing DNS cache'
+      );
+      
+    } else if (process.platform === 'linux') {
+      // Linux (various distros)
+      // Try different service managers
+      let success = false;
+      
+      // Try systemd first
+      try {
+        await hostsFileWriter.executeWithElevatedPrivileges(
+          'sudo', ['systemctl', 'restart', 'nscd'], 'Restarting nscd'
+        );
+        success = true;
+      } catch (e) {
+        // nscd not available, try dnsmasq
+        try {
+          await hostsFileWriter.executeWithElevatedPrivileges(
+            'sudo', ['systemctl', 'restart', 'dnsmasq'], 'Restarting dnsmasq'
+          );
+          success = true;
+        } catch (e2) {
+          // dnsmasq not available, try network-manager
+          try {
+            await hostsFileWriter.executeWithElevatedPrivileges(
+              'sudo', ['systemctl', 'restart', 'NetworkManager'], 'Restarting NetworkManager'
+            );
+            success = true;
+          } catch (e3) {
+            // All attempts failed
+            success = false;
+          }
+        }
+      }
+      
+      if (!success) {
+        throw new Error('Unable to find a compatible service to restart for DNS cache clearing');
+      }
+    } else {
+      throw new Error(`DNS cache flushing not supported on platform: ${process.platform}`);
+    }
+    
+    dialog.showMessageBox({
+      type: 'info',
+      title: 'DNS Cache Flushed',
+      message: 'DNS cache has been successfully flushed.'
+    });
+    
+  } catch (error) {
+    dialog.showErrorBox(
+      'DNS Flush Failed',
+      `Failed to flush DNS cache: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 }
 
@@ -692,12 +875,15 @@ async function initHostsFile(): Promise<void> {
       // Watch for changes to reload and notify renderer
       hostsFileWatcher.on(HostsFileWatcherEvent.CHANGED, async () => {
         if (parsedHostsFile) {
-          // Reload the file when it changes
-          parsedHostsFile = await hostsFileParser.parseHostsFile();
-          
-          // Notify any open renderer windows
-          if (mainWindow) {
-            mainWindow.webContents.send('hosts:file-changed', parsedHostsFile);
+          // Check if we should auto-reload on external changes
+          if (appConfig?.hostsFile?.autoReloadOnExternalChanges !== false) {
+            // Reload the file when it changes
+            parsedHostsFile = await hostsFileParser.parseHostsFile();
+            
+            // Notify any open renderer windows
+            if (mainWindow) {
+              mainWindow.webContents.send('hosts:file-changed', parsedHostsFile);
+            }
           }
         }
       });
@@ -712,6 +898,37 @@ async function initHostsFile(): Promise<void> {
       `Could not load the hosts file: ${error instanceof Error ? error.message : String(error)}`
     );
   }
+}
+
+/**
+ * Initialize configuration manager and load settings
+ */
+async function initConfiguration(): Promise<void> {
+  try {
+    // Load the configuration
+    appConfig = await configManager.loadConfig();
+    
+    // Apply any version-specific updates
+    await configManager.applyVersionUpdates();
+    
+    // Setup auto-launch if configured
+    await setupAutoLaunch();
+    
+  } catch (error) {
+    console.error('Failed to load configuration:', error);
+    // Fall back to default configuration
+    appConfig = configManager.getConfig();
+  }
+}
+
+/**
+ * Setup auto-launch based on configuration
+ */
+async function setupAutoLaunch(): Promise<void> {
+  // This is a placeholder for actual auto-launch implementation
+  // In a full implementation, we would use a package like 'auto-launch'
+  // to configure the app to launch on startup
+  console.log('Auto launch configured:', appConfig.startup.launchOnStartup);
 }
 
 /**
@@ -736,7 +953,7 @@ function registerIpcHandlers(): void {
       const useElevated = needsElevatedPermissions();
       const result = await hostsFileWriter.addHostEntry(parsedHostsFile, entry, {
         useElevatedPermissions: useElevated,
-        createBackup: true
+        createBackup: appConfig?.hostsFile?.createBackups ?? true
       });
       
       if (result.success) {
@@ -763,7 +980,7 @@ function registerIpcHandlers(): void {
       const useElevated = needsElevatedPermissions();
       const result = await hostsFileWriter.updateHostEntry(parsedHostsFile, entry, {
         useElevatedPermissions: useElevated,
-        createBackup: true
+        createBackup: appConfig?.hostsFile?.createBackups ?? true
       });
       
       if (result.success) {
@@ -790,7 +1007,7 @@ function registerIpcHandlers(): void {
       const useElevated = needsElevatedPermissions();
       const result = await hostsFileWriter.toggleHostEntry(parsedHostsFile, lineNumber, {
         useElevatedPermissions: useElevated,
-        createBackup: true
+        createBackup: appConfig?.hostsFile?.createBackups ?? true
       });
       
       if (result.success) {
@@ -817,7 +1034,7 @@ function registerIpcHandlers(): void {
       const useElevated = needsElevatedPermissions();
       const result = await hostsFileWriter.removeHostEntry(parsedHostsFile, lineNumber, {
         useElevatedPermissions: useElevated,
-        createBackup: true
+        createBackup: appConfig?.hostsFile?.createBackups ?? true
       });
       
       if (result.success) {
@@ -826,6 +1043,54 @@ function registerIpcHandlers(): void {
       }
       
       return { success: result.success, error: result.error?.message };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+  
+  // Configuration related handlers
+  ipcMain.handle('config:get', () => {
+    return configManager.getConfig();
+  });
+  
+  ipcMain.handle('config:update', async (_event, partialConfig: Partial<AppConfiguration>) => {
+    try {
+      appConfig = await configManager.updateConfig(partialConfig);
+      
+      // Apply any changes that require immediate action
+      if ('startup' in partialConfig) {
+        await setupAutoLaunch();
+      }
+      
+      return { success: true };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+  
+  ipcMain.handle('config:reset', async () => {
+    try {
+      appConfig = await configManager.resetToDefaults();
+      return { success: true };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+  
+  // DNS cache flushing
+  ipcMain.handle('system:flush-dns', async () => {
+    try {
+      await flushDNSCache();
+      return { success: true };
     } catch (error) {
       return { 
         success: false, 

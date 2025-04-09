@@ -1,9 +1,15 @@
 import fs from 'node:fs/promises';
 import { HostsFileWriter, HostsFileWriterEvent, WriteResult } from '../src/services/hostsFileWriter';
 import { HostEntry, CommentLine, ParsedHostsFile } from '../src/types/hostsFile';
+import * as sudo from 'sudo-prompt';
+import os from 'node:os';
+import path from 'node:path';
 
-// Mock fs and os modules
+// Mock fs, os, and sudo-prompt modules
 jest.mock('node:fs/promises');
+jest.mock('sudo-prompt');
+jest.mock('node:os');
+jest.mock('node:path');
 
 describe('HostsFileWriter', () => {
   const mockFilePath = '/mock/etc/hosts';
@@ -108,10 +114,30 @@ describe('HostsFileWriter', () => {
     jest.clearAllMocks();
     
     // Mock fs.writeFile to resolve successfully by default
-    (fs.writeFile as jest.Mock).mockResolvedValue(undefined);
+    (fs.writeFile as jest.Mock).mockImplementation(() => Promise.resolve(undefined));
+    
+    // Mock fs.unlink to resolve successfully
+    jest.spyOn(fs, 'unlink').mockImplementation(() => Promise.resolve(undefined));
     
     // Mock fs.copyFile (for backups) to resolve successfully
     (fs.copyFile as jest.Mock).mockResolvedValue(undefined);
+
+    // Mock os.tmpdir to return a mock temp directory
+    (os.tmpdir as jest.Mock).mockReturnValue('/mock/tmp');
+
+    // Mock path.join to simply concatenate paths for testing
+    (path.join as jest.Mock).mockImplementation((...paths: string[]) => paths.join('/'));
+
+    // Mock sudo.exec to resolve successfully by default
+    (sudo.exec as jest.Mock).mockImplementation((command, options, callback) => {
+      callback(null, 'success', '');
+    });
+    
+    // Set process.platform for testing
+    Object.defineProperty(process, 'platform', {
+      value: 'darwin', // Default to macOS for tests
+      configurable: true
+    });
     
     writer = new HostsFileWriter();
   });
@@ -216,16 +242,60 @@ describe('HostsFileWriter', () => {
       }));
     });
     
-    it('should throw an error when trying to use elevated permissions', async () => {
-      // Set up error handler to avoid unhandled promise rejection
+    it('should use sudo-prompt when elevated permissions are requested', async () => {
+      const result = await writer.writeHostsFile(sampleParsedFile, { useElevatedPermissions: true });
+      
+      expect(result.success).toBe(true);
+      expect(sudo.exec).toHaveBeenCalled();
+      expect(fs.writeFile).toHaveBeenCalled(); // Should still be called to write the temp file
+    });
+    
+    it('should handle sudo execution errors', async () => {
+      // Mock sudo.exec to fail
+      (sudo.exec as jest.Mock).mockImplementation((command, options, callback) => {
+        callback(new Error('Permission denied'), '', 'Access denied');
+      });
+      
       const errorHandler = jest.fn();
       writer.on(HostsFileWriterEvent.ERROR, errorHandler);
       
       const result = await writer.writeHostsFile(sampleParsedFile, { useElevatedPermissions: true });
       
       expect(result.success).toBe(false);
-      expect(result.error?.message).toBe('Elevated permissions not yet implemented');
+      expect(result.error?.message).toContain('Error writing to hosts file');
       expect(errorHandler).toHaveBeenCalled();
+    });
+    
+    it('should use the correct command for macOS/Linux', async () => {
+      Object.defineProperty(process, 'platform', {
+        value: 'darwin',
+        configurable: true
+      });
+      
+      await writer.writeHostsFile(sampleParsedFile, { useElevatedPermissions: true });
+      
+      // Should use cat command on Unix-like systems
+      expect(sudo.exec).toHaveBeenCalledWith(
+        expect.stringContaining('cat'),
+        expect.anything(),
+        expect.anything()
+      );
+    });
+    
+    it('should use the correct command for Windows', async () => {
+      Object.defineProperty(process, 'platform', {
+        value: 'win32',
+        configurable: true
+      });
+      
+      await writer.writeHostsFile(sampleParsedFile, { useElevatedPermissions: true });
+      
+      // Should use copy command on Windows
+      expect(sudo.exec).toHaveBeenCalledWith(
+        expect.stringContaining('cmd.exe /c copy'),
+        expect.anything(),
+        expect.anything()
+      );
     });
   });
   

@@ -1,6 +1,9 @@
 import fs from 'node:fs/promises';
 import { EventEmitter } from 'events';
 import { HostEntry, CommentLine, HostsFileLine, ParsedHostsFile } from '../types/hostsFile';
+import * as sudo from 'sudo-prompt';
+import path from 'node:path';
+import os from 'node:os';
 
 /**
  * Events emitted by the HostsFileWriter
@@ -30,9 +33,109 @@ export interface WriteOptions {
 }
 
 /**
+ * Validation result for a host entry
+ */
+export interface ValidationResult {
+  valid: boolean;
+  errors?: string[];
+}
+
+/**
  * Service for writing changes to the hosts file
  */
 export class HostsFileWriter extends EventEmitter {
+  /**
+   * Validate a host entry to ensure it's properly formatted
+   * @param entry The host entry to validate
+   * @returns Validation result with any errors
+   */
+  public validateHostEntry(entry: Partial<HostEntry>): ValidationResult {
+    const errors: string[] = [];
+    
+    // Check for required fields
+    if (!entry.ip) {
+      errors.push('IP address is required');
+    } else if (!this.isValidIP(entry.ip)) {
+      errors.push('Invalid IP address format');
+    }
+    
+    if (!entry.hostname) {
+      errors.push('Hostname is required');
+    } else if (!this.isValidHostname(entry.hostname)) {
+      errors.push('Invalid hostname format');
+    }
+    
+    // Validate aliases if present
+    if (entry.aliases && entry.aliases.length > 0) {
+      for (const alias of entry.aliases) {
+        if (!this.isValidHostname(alias)) {
+          errors.push(`Invalid alias format: ${alias}`);
+        }
+      }
+    }
+    
+    return {
+      valid: errors.length === 0,
+      errors: errors.length > 0 ? errors : undefined
+    };
+  }
+  
+  /**
+   * Check if a string is a valid IP address (IPv4 or IPv6)
+   */
+  private isValidIP(ip: string): boolean {
+    // IPv4 validation
+    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) {
+      // Check each octet is <= 255
+      const octets = ip.split('.');
+      return octets.every(octet => parseInt(octet, 10) <= 255);
+    }
+    
+    // IPv6 validation (simplified)
+    // Full IPv6 validation is complex, this is a basic check
+    if (/^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/.test(ip)) {
+      return true;
+    }
+    
+    // IPv6 abbreviated forms (::)
+    if (/^::([0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4}$/.test(ip)) {
+      return true;
+    }
+    
+    if (/^([0-9a-fA-F]{1,4}:){1,7}:$/.test(ip)) {
+      return true;
+    }
+    
+    if (/^([0-9a-fA-F]{1,4}:){1,6}:([0-9a-fA-F]{1,4}:){1,6}[0-9a-fA-F]{1,4}$/.test(ip)) {
+      return true;
+    }
+    
+    // Allow localhost special cases
+    return ip === '::1' || ip === 'localhost';
+  }
+  
+  /**
+   * Check if a string is a valid hostname
+   */
+  private isValidHostname(hostname: string): boolean {
+    // Hostnames follow RFC 1123 rules
+    // Allow alphanumeric, -, and . characters
+    // Cannot start/end with - or .
+    // Maximum length 255 characters
+    if (hostname.length > 255) {
+      return false;
+    }
+    
+    // Basic hostname validation
+    if (!/^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])*(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])*)*$/.test(hostname)) {
+      return false;
+    }
+    
+    // Check each segment length (max 63 chars)
+    const segments = hostname.split('.');
+    return segments.every(segment => segment.length <= 63);
+  }
+  
   /**
    * Convert a parsed hosts file back to text
    * Preserves all formatting, comments, and structure of the original file
@@ -99,9 +202,7 @@ export class HostsFileWriter extends EventEmitter {
       
       // Write the file
       if (options.useElevatedPermissions) {
-        // TODO: Implement elevated permissions writing
-        // This will be implemented in a future task
-        throw new Error('Elevated permissions not yet implemented');
+        await this.writeWithElevatedPermissions(filePath, content);
       } else {
         // Regular file writing
         await fs.writeFile(filePath, content, 'utf-8');
@@ -126,6 +227,59 @@ export class HostsFileWriter extends EventEmitter {
       
       return result;
     }
+  }
+  
+  /**
+   * Write to hosts file with elevated permissions using sudo-prompt
+   * @param filePath Path to the hosts file
+   * @param content Content to write to the file
+   * @returns Promise that resolves when the write is complete
+   */
+  private writeWithElevatedPermissions(filePath: string, content: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      // Create a temporary file with the content
+      const tempDir = os.tmpdir();
+      const tempFilePath = path.join(tempDir, `hoast-temp-${Date.now()}.txt`);
+      
+      // First, write to the temporary file
+      fs.writeFile(tempFilePath, content, 'utf-8')
+        .then(() => {
+          // Create platform-specific command to copy the temp file to hosts file
+          let command: string;
+          if (process.platform === 'win32') {
+            // Windows command using copy
+            command = `cmd.exe /c copy "${tempFilePath}" "${filePath}" /Y`;
+          } else {
+            // Unix-based command using cat
+            command = `cat "${tempFilePath}" > "${filePath}" && rm "${tempFilePath}"`;
+          }
+          
+          // Execute the command with elevated permissions
+          sudo.exec(command, {
+            name: 'Hoast - Hosts File Manager',
+          }, (error, stdout, stderr) => {
+            // Clean up temp file on Unix-like platforms is done in the command
+            // For Windows, we need to clean up the temp file here
+            if (process.platform === 'win32') {
+              // Handle cleanup of temp file, but don't fail if it errors
+              fs.unlink(tempFilePath)
+                .catch(unlinkError => {
+                  // Just log the error, don't reject the promise
+                  console.warn(`Failed to delete temporary file: ${unlinkError.message}`);
+                });
+            }
+            
+            if (error) {
+              reject(new Error(`Error writing to hosts file: ${stderr || error.message}`));
+            } else {
+              resolve();
+            }
+          });
+        })
+        .catch(err => {
+          reject(new Error(`Failed to write temporary file: ${err.message}`));
+        });
+    });
   }
   
   /**
@@ -176,6 +330,16 @@ export class HostsFileWriter extends EventEmitter {
    * @returns Promise resolving to WriteResult
    */
   public async addHostEntry(parsedFile: ParsedHostsFile, newEntry: Omit<HostEntry, 'lineNumber' | 'raw'>, options: WriteOptions = {}): Promise<WriteResult> {
+    // Validate the new entry
+    const validationResult = this.validateHostEntry(newEntry);
+    if (!validationResult.valid) {
+      return {
+        success: false,
+        error: new Error(`Validation failed: ${validationResult.errors?.join(', ')}`),
+        filePath: parsedFile.filePath
+      };
+    }
+    
     // Create a deep copy of the parsed file
     const updatedFile = this.cloneParsedFile(parsedFile);
     

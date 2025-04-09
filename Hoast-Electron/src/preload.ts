@@ -1,2 +1,29 @@
+// filepath: /Users/hippo/git_repos/personal/Hoast/Hoast-Electron/src/preload.ts
 // See the Electron documentation for details on how to use preload scripts:
 // https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
+
+import { contextBridge, ipcRenderer } from 'electron';
+import { HostEntry, ParsedHostsFile } from './types/hostsFile';
+
+// Expose protected methods that allow the renderer process to use
+// the ipcRenderer without exposing the entire object
+contextBridge.exposeInMainWorld('electronAPI', {
+  // Hosts file operations
+  getHostsFile: (): Promise<ParsedHostsFile> => ipcRenderer.invoke('hosts:get-file'),
+  addHostEntry: (entry: Omit<HostEntry, 'lineNumber' | 'raw'>) => 
+    ipcRenderer.invoke('hosts:add-entry', entry),
+  updateHostEntry: (entry: HostEntry) => 
+    ipcRenderer.invoke('hosts:update-entry', entry),
+  toggleHostEntry: (lineNumber: number) => 
+    ipcRenderer.invoke('hosts:toggle-entry', lineNumber),
+  removeHostEntry: (lineNumber: number) => 
+    ipcRenderer.invoke('hosts:remove-entry', lineNumber),
+  
+  // Event listeners
+  onHostsFileChanged: (callback: (parsedFile: ParsedHostsFile) => void) => {
+    ipcRenderer.on('hosts:file-changed', (_event, parsedFile) => callback(parsedFile));
+    return () => {
+      ipcRenderer.removeAllListeners('hosts:file-changed');
+    };
+  }
+});

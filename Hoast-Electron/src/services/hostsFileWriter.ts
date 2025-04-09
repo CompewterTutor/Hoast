@@ -444,4 +444,30 @@ export class HostsFileWriter extends EventEmitter {
       lastModified: new Date(parsedFile.lastModified.getTime())
     };
   }
+  
+  /**
+   * Execute a command with elevated privileges using sudo-prompt
+   * @param command The command to execute
+   * @param args The arguments to pass to the command
+   * @param description A description of what the command does
+   * @returns Promise that resolves when the command completes
+   */
+  public executeWithElevatedPrivileges(command: string, args: string[], description: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      // Format the command and arguments into a single string
+      const fullCommand = `${command} ${args.join(' ')}`;
+      
+      // Execute the command with elevated permissions
+      sudo.exec(fullCommand, {
+        name: 'Hoast - Hosts File Manager',
+        icns: process.platform === 'darwin' ? path.join(process.resourcesPath, 'icon.icns') : undefined, // macOS icon
+      }, (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(`Failed to execute "${description}": ${stderr || error.message}`));
+        } else {
+          resolve();
+        }
+      });
+    });
+  }
 }

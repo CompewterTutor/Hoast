@@ -36,7 +36,7 @@
 - [x] Implement permission elevation for writing to `/etc/hosts`
   - [x] Research and integrate sudo-prompt or electron-sudo
   - [x] Add error handling for permission failures
-- [ ] Add support for DNS cache flushing
+- [x] Add support for DNS cache flushing
 - [ ] Implement auto-launch on system startup
 - [x] Handle external file changes
 

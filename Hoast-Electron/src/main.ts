@@ -11,7 +11,7 @@ if (started) {
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 
-const createWindow = () => {
+export const createWindow = () => {
   // Create the browser window.
   mainWindow = new BrowserWindow({
     width: 800,
@@ -41,7 +41,7 @@ const createWindow = () => {
   });
 };
 
-const createTray = () => {
+export const createTray = () => {
   // Choose appropriate icon based on platform
   if (process.platform === 'darwin') {
     // Use template image for macOS (supports dark/light mode)

@@ -6,7 +6,7 @@
 - [x] Configure project structure (main/renderer processes)
 - [x] Create basic tray/menubar icon implementation
 - [x] Add application icons for all platforms
-- [ ] Set up testing framework
+- [x] Set up testing framework
 
 ## Phase 2: Core Functionality
 - [ ] Create hosts file parser service

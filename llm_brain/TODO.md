@@ -9,11 +9,11 @@
 - [x] Set up testing framework
 
 ## Phase 2: Core Functionality
-- [ ] Create hosts file parser service
-  - [ ] Read and parse `/etc/hosts` file
-  - [ ] Convert to structured data
-  - [ ] Detect commented/uncommented entries
-  - [ ] Preserve formatting and comments
+- [x] Create hosts file parser service
+  - [x] Read and parse `/etc/hosts` file
+  - [x] Convert to structured data
+  - [x] Detect commented/uncommented entries
+  - [x] Preserve formatting and comments
 - [ ] Implement file watcher for external changes
 - [ ] Create hosts file writer service
   - [ ] Convert structured data back to text

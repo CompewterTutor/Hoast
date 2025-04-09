@@ -19,12 +19,19 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
   - Detects enabled/disabled (commented) entries
   - Preserves formatting and comments
   - Comprehensive tests implemented for all functionality
+- File watcher service implemented
+  - Detects external changes to the hosts file
+  - Uses chokidar for efficient file watching
+  - Debounces rapid changes to prevent multiple events
+  - Integrated with the hosts file parser service
+  - Provides event-based notifications for application-wide sync
+  - Includes comprehensive tests for the functionality
 
 ## Tech Stack
 - **Framework**: Electron with Electron Forge
 - **Build Tools**: Vite, TypeScript
 - **Target Platforms**: macOS, Windows, Linux
-- **Key Dependencies**: electron, electron-forge, electron-squirrel-startup
+- **Key Dependencies**: electron, electron-forge, electron-squirrel-startup, chokidar
 
 ## Development Environment
 - Project initialized with Electron Forge
@@ -44,9 +51,13 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
     - Converts to structured data with types
     - Identifies enabled/disabled entries
     - Preserves comments and formatting
+  - File watcher service (implemented)
+    - Monitors hosts file for external changes
+    - Uses chokidar for efficient cross-platform watching
+    - Updates application state when file changes
+    - Uses debouncing to prevent multiple rapid events
   - Permission elevation handler (to be implemented)
   - Configuration manager (to be implemented)
-  - File watcher (to be implemented)
 
 ## Important Decisions
 - Project name: Hoast
@@ -55,8 +66,8 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
 - Preservation of hosts file formatting is a priority
 - Using TypeScript for improved type safety and developer experience
 - Using Electron Forge with Vite for better development experience and faster builds
+- Using chokidar for file watching due to its reliability across platforms
 
 ## Next Steps
-- Implement file watcher for external changes
 - Create hosts file writer service
 - Set up configuration manager for app settings

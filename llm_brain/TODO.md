@@ -37,7 +37,7 @@
   - [x] Research and integrate sudo-prompt or electron-sudo
   - [x] Add error handling for permission failures
 - [x] Add support for DNS cache flushing
-- [ ] Implement auto-launch on system startup
+- [x] Implement auto-launch on system startup
 - [x] Handle external file changes
 
 ## Phase 5: Enhanced Features

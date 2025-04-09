@@ -8,6 +8,7 @@ import { HostsFileParser } from './services/hostsFileParser';
 import { HostsFileWatcher, HostsFileWatcherEvent } from './services/hostsFileWatcher';
 import { ConfigurationManager } from './services/configurationManager';
 import { AppConfiguration } from './types/configuration';
+import AutoLaunch from 'auto-launch';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -923,13 +924,37 @@ async function initConfiguration(): Promise<void> {
 
 /**
  * Setup auto-launch based on configuration
+ * @param config Optional configuration to use instead of global appConfig (useful for testing)
  */
-async function setupAutoLaunch(): Promise<void> {
-  // This is a placeholder for actual auto-launch implementation
-  // In a full implementation, we would use a package like 'auto-launch'
-  // to configure the app to launch on startup
-  console.log('Auto launch configured:', appConfig.startup.launchOnStartup);
+async function setupAutoLaunch(config?: AppConfiguration): Promise<void> {
+  try {
+    const actualConfig = config || appConfig;
+    const appName = app.getName();
+    const autoLauncher = new AutoLaunch({
+      name: appName,
+      path: process.execPath,
+      isHidden: actualConfig.startup.startMinimized
+    });
+
+    // Check if auto-launch is enabled and configure accordingly
+    const isEnabled = await autoLauncher.isEnabled();
+    
+    if (actualConfig.startup.launchOnStartup && !isEnabled) {
+      // Enable auto-launch if it's enabled in config but not in the system
+      await autoLauncher.enable();
+      console.log(`Auto-launch enabled for ${appName}`);
+    } else if (!actualConfig.startup.launchOnStartup && isEnabled) {
+      // Disable auto-launch if it's disabled in config but enabled in the system
+      await autoLauncher.disable();
+      console.log(`Auto-launch disabled for ${appName}`);
+    }
+  } catch (error) {
+    console.error('Failed to configure auto-launch:', error);
+  }
 }
+
+// Export for testing
+export { setupAutoLaunch };
 
 /**
  * Register IPC handlers for communication with renderer process
@@ -1097,5 +1122,15 @@ function registerIpcHandlers(): void {
         error: error instanceof Error ? error.message : String(error)
       };
     }
+  });
+  
+  // Directory selection dialog
+  ipcMain.handle('dialog:select-directory', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory', 'createDirectory'],
+      title: 'Select Backup Directory'
+    });
+    
+    return result;
   });
 }

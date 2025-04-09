@@ -2,12 +2,115 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>Hello World!</title>
-
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'">
+    <title>Hoast Preferences</title>
   </head>
   <body>
-    <h1>💖 Hello World!</h1>
-    <p>Welcome to your Electron application.</p>
+    <div class="container">
+      <h1>Hoast Preferences</h1>
+      
+      <div class="tab-container">
+        <div class="tabs">
+          <button class="tab-button active" data-tab="general">General</button>
+          <button class="tab-button" data-tab="hosts-file">Hosts File</button>
+          <button class="tab-button" data-tab="ui">User Interface</button>
+          <button class="tab-button" data-tab="system">System</button>
+        </div>
+        
+        <div class="tab-content active" id="general-tab">
+          <h2>General Preferences</h2>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="launchOnStartup" />
+              Launch on system startup
+            </label>
+          </div>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="startMinimized" />
+              Start minimized to tray/menu bar
+            </label>
+          </div>
+        </div>
+        
+        <div class="tab-content" id="hosts-file-tab">
+          <h2>Hosts File Preferences</h2>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="createBackups" />
+              Create backups before modifying hosts file
+            </label>
+          </div>
+          <div class="form-group">
+            <label for="backupDirectory">Backup Directory (optional):</label>
+            <div class="input-with-button">
+              <input type="text" id="backupDirectory" placeholder="Default: App data directory" />
+              <button id="selectBackupDir">Choose...</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="maxBackups">Maximum number of backups to keep:</label>
+            <input type="number" id="maxBackups" min="1" max="100" />
+          </div>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="autoReloadOnExternalChanges" />
+              Auto-reload hosts file when changed externally
+            </label>
+          </div>
+        </div>
+        
+        <div class="tab-content" id="ui-tab">
+          <h2>User Interface Preferences</h2>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="groupEntriesByStatus" />
+              Group entries by status (enabled/disabled)
+            </label>
+          </div>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="showConfirmationDialogs" />
+              Show confirmation dialogs for destructive actions
+            </label>
+          </div>
+          <div class="form-group">
+            <label for="maxEntriesInTrayMenu">Maximum entries to show in tray menu:</label>
+            <input type="number" id="maxEntriesInTrayMenu" min="1" max="100" />
+          </div>
+        </div>
+        
+        <div class="tab-content" id="system-tab">
+          <h2>System Preferences</h2>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="flushDNSOnChange" />
+              Flush DNS cache after hosts file changes
+            </label>
+          </div>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="alwaysUseElevatedPermissions" />
+              Always use elevated permissions for writes
+            </label>
+            <p class="description">
+              When enabled, the app will always request admin/root privileges for writing to the hosts file.
+              When disabled, elevated permissions will only be requested when needed.
+            </p>
+          </div>
+          <div class="form-group">
+            <button id="flushDNSButton" class="action-button">Flush DNS Cache Now</button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="actions">
+        <button id="resetToDefaults">Reset to Defaults</button>
+        <div class="spacer"></div>
+        <button id="cancelButton">Cancel</button>
+        <button id="saveButton" class="primary">Save</button>
+      </div>
+    </div>
     <script type="module" src="/src/renderer.ts"></script>
   </body>
 </html>

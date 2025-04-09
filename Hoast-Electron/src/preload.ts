@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // System operations
   flushDNSCache: () => ipcRenderer.invoke('system:flush-dns'),
+  selectDirectory: () => ipcRenderer.invoke('dialog:select-directory'),
   
   // Add host entry dialog functions
   submitNewEntry: (entry: Omit<HostEntry, 'lineNumber' | 'raw'>) =>

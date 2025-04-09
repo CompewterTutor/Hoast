@@ -56,12 +56,19 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
   - Uses event emitter for config change notifications
   - Supports partial configuration updates
   - Includes comprehensive tests for all functionality
+- Auto-launch functionality implemented
+  - Uses auto-launch package for cross-platform startup management
+  - Configures the app to start on system login based on user preferences
+  - Respects the startMinimized setting to control visibility on startup
+  - Updates auto-launch settings when user preferences change
+  - Handles permission requirements for setting up auto-launch
+  - Includes comprehensive tests for the functionality
 
 ## Tech Stack
 - **Framework**: Electron with Electron Forge
 - **Build Tools**: Vite, TypeScript
 - **Target Platforms**: macOS, Windows, Linux
-- **Key Dependencies**: electron, electron-forge, electron-squirrel-startup, chokidar, sudo-prompt
+- **Key Dependencies**: electron, electron-forge, electron-squirrel-startup, chokidar, sudo-prompt, auto-launch
 
 ## Development Environment
 - Project initialized with Electron Forge
@@ -103,6 +110,11 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
     - Stores data in the user data directory
     - Provides defaults and version migration
     - Uses events to notify of configuration changes
+  - Auto-launch functionality (implemented)
+    - Manages application startup with system boot
+    - Uses auto-launch package for cross-platform compatibility
+    - Ties into user preferences for configurable behavior
+    - Handles different startup modes (hidden vs. visible)
 
 ## Important Decisions
 - Project name: Hoast
@@ -113,9 +125,8 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
 - Using Electron Forge with Vite for better development experience and faster builds
 - Using chokidar for file watching due to its reliability across platforms
 - Using sudo-prompt for permission elevation due to its cross-platform support
+- Using auto-launch for system startup integration due to its cross-platform support
 
 ## Next Steps
 - Create preferences/settings window
-- Add support for DNS cache flushing
-- Implement auto-launch on system startup
 - Add host entry grouping functionality

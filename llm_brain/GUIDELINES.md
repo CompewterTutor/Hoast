@@ -29,3 +29,30 @@ Do not annotate task completion in the memory file. It will be tracked in the to
 ## Update development guidelines
 
 If necessary, update the development guidelines to reflect anything you've learned while working on the project.
+
+## Testing Guidelines
+
+### Testing Classes with Private Properties
+
+When testing classes with private properties in TypeScript, you have several options:
+
+1. **Create a Test-Specific Subclass**: Extend the original class and override private properties using Object.defineProperty. This approach allows you to control internal state for testing while maintaining encapsulation in production code.
+
+   ```typescript
+   class TestConfigManager extends ConfigurationManager {
+     constructor(configFilename = 'config.json') {
+       super(configFilename);
+       // Override the private property after calling the parent constructor
+       Object.defineProperty(this, 'configFilePath', {
+         value: `/mock/user/data/${configFilename}`,
+         writable: true,
+       });
+     }
+   }
+   ```
+
+2. **Mock Methods Rather Than Properties**: Instead of trying to access private properties directly, mock the methods that use them. This approach focuses on testing behavior rather than implementation details.
+
+3. **Use Dependency Injection**: Design classes to accept dependencies in their constructor, making it easier to provide mock implementations for testing.
+
+These approaches help maintain encapsulation while still allowing thorough testing of classes with private members.

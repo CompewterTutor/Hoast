@@ -48,6 +48,14 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
   - Platform-specific optimizations (icons, behavior)
   - Confirmation dialogs for destructive actions
   - Success and error notifications
+- Configuration manager implemented
+  - Manages application settings and preferences
+  - Stores configuration in the user data directory
+  - Supports loading, saving, and resetting configuration
+  - Handles defaults and version updates
+  - Uses event emitter for config change notifications
+  - Supports partial configuration updates
+  - Includes comprehensive tests for all functionality
 
 ## Tech Stack
 - **Framework**: Electron with Electron Forge
@@ -89,7 +97,12 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
     - Uses sudo-prompt for cross-platform elevation
     - Platform-specific command execution
     - Temporary file creation for elevated operations
-  - Configuration manager (to be implemented)
+  - Configuration manager (implemented)
+    - Manages user preferences and application settings
+    - Handles loading, saving, and updating configuration
+    - Stores data in the user data directory
+    - Provides defaults and version migration
+    - Uses events to notify of configuration changes
 
 ## Important Decisions
 - Project name: Hoast
@@ -102,7 +115,6 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
 - Using sudo-prompt for permission elevation due to its cross-platform support
 
 ## Next Steps
-- Set up configuration manager for app settings
 - Create preferences/settings window
 - Add support for DNS cache flushing
 - Implement auto-launch on system startup

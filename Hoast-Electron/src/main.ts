@@ -25,6 +25,9 @@ let parsedHostsFile: ParsedHostsFile | null = null;
 let configManager: ConfigurationManager = new ConfigurationManager();
 let appConfig: AppConfiguration;
 
+// Flag to indicate whether the application is quitting
+let willQuit = false;
+
 export const createWindow = () => {
   // Create the browser window.
   mainWindow = new BrowserWindow({
@@ -50,11 +53,15 @@ export const createWindow = () => {
   // Don't show the window when it's ready, we're using a tray app
   // mainWindow.webContents.openDevTools();
   
-  // Hide the window when it's closed instead of quitting the app
+  // Only hide the window when it's closed if we're not quitting the app
   mainWindow.on('close', (event) => {
-    event.preventDefault();
-    mainWindow?.hide();
-    return false;
+    if (!willQuit) {
+      event.preventDefault();
+      mainWindow?.hide();
+      return false;
+    }
+    // Otherwise let the window close normally
+    return true;
   });
 
   // Set appropriate window behavior
@@ -73,42 +80,49 @@ export const createTray = () => {
     if (process.platform === 'darwin') {
       // Use template image for macOS (supports dark/light mode)
       console.log("Using macOS specific tray icon");
-      const iconPath = path.join(__dirname, '../assets/icons/16x16.png');
-      console.log("Icon path:", iconPath);
       
-      // Check if file exists
-      if (!fs.existsSync(iconPath)) {
-        console.error(`Tray icon file not found at: ${iconPath}`);
-        
-        // Try alternative paths
-        const alternativePaths = [
-          path.resolve(app.getAppPath(), 'assets/icons/16x16.png'),
-          path.resolve(app.getAppPath(), 'assets/icons/icon.png'),
-          path.resolve(app.getAppPath(), 'assets/icons/icon.icns')
-        ];
-        
-        let foundIcon = false;
-        for (const altPath of alternativePaths) {
-          if (fs.existsSync(altPath)) {
-            console.log(`Found alternative icon at: ${altPath}`);
-            const macIcon = nativeImage.createFromPath(altPath);
-            macIcon.setTemplateImage(true); // Template image support for macOS dark/light modes
-            tray = new Tray(macIcon);
-            foundIcon = true;
-            break;
-          }
+      // Define icon paths - macOS needs special handling for menu bar icons
+      const iconPaths = [
+        path.join(__dirname, '../assets/icons/16x16.png'),
+        path.resolve(app.getAppPath(), 'assets/icons/16x16.png'),
+        path.join(__dirname, '../assets/icons/icon.png'),
+        path.resolve(app.getAppPath(), 'assets/icons/icon.png'),
+        path.join(__dirname, '../assets/icons/icon.icns'),
+        path.resolve(app.getAppPath(), 'assets/icons/icon.icns')
+      ];
+      
+      // Try to find a valid icon file
+      let foundIcon = false;
+      for (const iconPath of iconPaths) {
+        if (fs.existsSync(iconPath)) {
+          console.log(`Found icon at: ${iconPath}`);
+          
+          // Create a properly sized icon for the macOS menu bar
+          const macIcon = nativeImage.createFromPath(iconPath);
+          
+          // Resize to optimal size for macOS status bar (16x16)
+          const resizedIcon = macIcon.resize({
+            width: 16,
+            height: 16
+          });
+          
+          // Set as template image (monochrome with transparency)
+          resizedIcon.setTemplateImage(true);
+          
+          // Create the tray with the properly sized icon
+          tray = new Tray(resizedIcon);
+          foundIcon = true;
+          break;
         }
-        
-        if (!foundIcon) {
-          // As a last resort, use a built-in icon or create one
-          console.log("Creating fallback icon");
-          const emptyIcon = nativeImage.createEmpty();
-          tray = new Tray(emptyIcon);
-        }
-      } else {
-        const macIcon = nativeImage.createFromPath(iconPath);
-        macIcon.setTemplateImage(true); // Template image support for macOS dark/light modes
-        tray = new Tray(macIcon);
+      }
+      
+      if (!foundIcon) {
+        console.log("Creating fallback icon");
+        // Create a simple 16x16 icon if no icon file is found
+        const emptyIcon = nativeImage.createEmpty();
+        const smallIcon = emptyIcon.resize({ width: 16, height: 16 });
+        smallIcon.setTemplateImage(true);
+        tray = new Tray(smallIcon);
       }
     } else if (process.platform === 'win32') {
       // Use ICO for Windows
@@ -411,7 +425,10 @@ function updateTrayMenu(): void {
     { 
       label: 'Quit', 
       click: () => {
-        app.quit();
+        willQuit = true; // Set the flag so we know we're truly quitting
+        setTimeout(() => {
+          app.quit(); // Give a small timeout for the flag to take effect
+        }, 100);
       } 
     }
   );
@@ -661,6 +678,12 @@ app.whenReady().then(async () => {
   
   // Register IPC handlers for hosts file operations
   registerIpcHandlers();
+});
+
+// Set flag when app is about to quit
+app.on('before-quit', () => {
+  console.log('Application is about to quit, setting willQuit flag');
+  willQuit = true;
 });
 
 // Linux requires explicit setting of the app icon using different method

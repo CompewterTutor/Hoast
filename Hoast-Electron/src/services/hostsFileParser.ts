@@ -2,16 +2,30 @@ import fs from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { EventEmitter } from 'events';
 import { HostEntry, CommentLine, HostsFileLine, ParsedHostsFile } from '../types/hostsFile';
+import { HostsFileWatcher, HostsFileWatcherEvent } from './hostsFileWatcher';
+
+/**
+ * Events emitted by the HostsFileService
+ */
+export enum HostsFileServiceEvent {
+  FILE_CHANGED = 'file_changed',
+  FILE_RELOAD = 'file_reload',
+  ERROR = 'error'
+}
 
 /**
  * Service for parsing and manipulating the hosts file
  */
-export class HostsFileService {
+export class HostsFileService extends EventEmitter {
   private hostsFilePath: string;
   private parsedFile: ParsedHostsFile | null = null;
+  private fileWatcher: HostsFileWatcher | null = null;
 
   constructor(customPath?: string) {
+    super();
+    
     // Default hosts file path based on platform
     if (customPath) {
       this.hostsFilePath = customPath;
@@ -187,6 +201,9 @@ export class HostsFileService {
     this.parsedFile = this.parseHostsFileContent(content);
     this.parsedFile.lastModified = stats.mtime;
     
+    // Emit reload event
+    this.emit(HostsFileServiceEvent.FILE_RELOAD, this.parsedFile);
+    
     return this.parsedFile;
   }
 
@@ -205,5 +222,56 @@ export class HostsFileService {
    */
   public getHostsFilePath(): string {
     return this.hostsFilePath;
+  }
+
+  /**
+   * Start watching the hosts file for changes
+   */
+  public async startFileWatcher(): Promise<boolean> {
+    // If we already have a watcher, stop it first
+    if (this.fileWatcher) {
+      await this.stopFileWatcher();
+    }
+
+    // Create a new watcher
+    this.fileWatcher = new HostsFileWatcher(this.hostsFilePath);
+    
+    // Setup event handlers
+    this.fileWatcher.on(HostsFileWatcherEvent.CHANGED, async () => {
+      console.log('Hosts file changed, reloading...');
+      try {
+        // Reload the file data
+        await this.parseHostsFile();
+        this.emit(HostsFileServiceEvent.FILE_CHANGED, this.parsedFile);
+      } catch (error) {
+        console.error('Error reloading hosts file:', error);
+        this.emit(HostsFileServiceEvent.ERROR, error);
+      }
+    });
+
+    this.fileWatcher.on(HostsFileWatcherEvent.ERROR, (error) => {
+      console.error('File watcher error:', error);
+      this.emit(HostsFileServiceEvent.ERROR, error);
+    });
+
+    // Start watching
+    return this.fileWatcher.startWatching();
+  }
+
+  /**
+   * Stop watching the hosts file
+   */
+  public async stopFileWatcher(): Promise<void> {
+    if (this.fileWatcher) {
+      await this.fileWatcher.stopWatching();
+      this.fileWatcher = null;
+    }
+  }
+
+  /**
+   * Check if the file watcher is active
+   */
+  public isWatcherActive(): boolean {
+    return this.fileWatcher !== null && this.fileWatcher.isActive();
   }
 }

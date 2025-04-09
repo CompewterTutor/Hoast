@@ -14,7 +14,7 @@
   - [x] Convert to structured data
   - [x] Detect commented/uncommented entries
   - [x] Preserve formatting and comments
-- [ ] Implement file watcher for external changes
+- [x] Implement file watcher for external changes
 - [ ] Create hosts file writer service
   - [ ] Convert structured data back to text
   - [ ] Write to file with proper formatting

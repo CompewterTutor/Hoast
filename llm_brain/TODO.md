@@ -2,9 +2,9 @@
 
 ## Phase 1: Project Setup
 - [x] Initialize Electron project (using Electron Forge ) 
-- [ ] Set up development environment (hot reloading, dev tools)
-- [ ] Configure project structure (main/renderer processes)
-- [ ] Create basic tray/menubar icon implementation
+- [x] Set up development environment (hot reloading, dev tools)
+- [x] Configure project structure (main/renderer processes)
+- [x] Create basic tray/menubar icon implementation
 - [ ] Set up testing framework
 
 ## Phase 2: Core Functionality

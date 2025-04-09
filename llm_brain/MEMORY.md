@@ -8,20 +8,30 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
 - README.md created with project overview, features, and development instructions
 - BRIEF.md details the project architecture and requirements
 - TODO.md outlines development phases and tasks
+- Basic Electron application initialized with Electron Forge
+- Core application structure set up with main and renderer processes
+- System tray functionality implemented with a basic menu
+- TypeScript type declarations added for dependencies
 
 ## Tech Stack
-- **Framework**: Electron
+- **Framework**: Electron with Electron Forge
+- **Build Tools**: Vite, TypeScript
 - **Target Platforms**: macOS, Windows, Linux
-- **Key Dependencies**: (To be determined during implementation)
+- **Key Dependencies**: electron, electron-forge, electron-squirrel-startup
 
 ## Development Environment
-- Project in initial planning/documentation phase
-- Development environment not yet set up
+- Project initialized with Electron Forge
+- TypeScript configuration set up
+- Development tools configured (hot reloading via Vite)
+- Basic file structure established
+- Type declarations created for required modules
 
 ## Architecture Notes
-- **Main Process**: Will handle system tray integration, file operations, and permission elevation
+- **Main Process**: Handles system tray integration, file operations, and permission elevation
+  - System tray implementation with context menu in place
+  - Main window hidden by default (tray-based app)
 - **Renderer Process**: Will manage UI windows (preferences, settings)
-- **Core Services**:
+- **Core Services** (to be implemented):
   - Hosts file parser/writer
   - Permission elevation handler
   - Configuration manager
@@ -32,8 +42,11 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
 - Cross-platform from the start
 - System tray-based interface for quick access
 - Preservation of hosts file formatting is a priority
+- Using TypeScript for improved type safety and developer experience
+- Using Electron Forge with Vite for better development experience and faster builds
 
 ## Next Steps
-- Initialize Electron project
-- Set up development environment
-- Implement basic tray icon functionality
+- Create proper icon assets for the tray and application
+- Implement hosts file parser service
+- Set up testing framework
+- Create preferences window UI

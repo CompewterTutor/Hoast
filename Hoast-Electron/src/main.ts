@@ -32,9 +32,12 @@ export const createWindow = () => {
     height: 600,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
     },
     show: false, // Hide window initially as we're making a tray app
     icon: path.join(__dirname, '../assets/icons/icon.ico'), // Set app window icon
+    title: 'Hoast - Preferences',
   });
 
   // and load the index.html of the app.
@@ -52,6 +55,14 @@ export const createWindow = () => {
     event.preventDefault();
     mainWindow?.hide();
     return false;
+  });
+
+  // Set appropriate window behavior
+  mainWindow.setMenuBarVisibility(false); // Hide default menu bar
+  
+  // Center window on screen when shown
+  mainWindow.on('show', () => {
+    mainWindow?.center();
   });
 };
 

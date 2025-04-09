@@ -27,10 +27,10 @@
   - [x] Implement enable/disable toggles
   - [x] Add "Add New Entry" functionality
   - [x] Add "Refresh" option
-- [ ] Create preferences/settings window
-  - [ ] Launch on startup option
-  - [ ] Backup/restore functionality
-  - [ ] UI preferences
+- [x] Create preferences/settings window
+  - [x] Launch on startup option
+  - [x] Backup/restore functionality
+  - [x] UI preferences
 
 ## Phase 4: System Integration
 - [x] Implement permission elevation for writing to `/etc/hosts`

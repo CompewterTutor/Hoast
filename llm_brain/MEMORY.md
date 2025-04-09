@@ -63,6 +63,16 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
   - Updates auto-launch settings when user preferences change
   - Handles permission requirements for setting up auto-launch
   - Includes comprehensive tests for the functionality
+- Preferences window implemented
+  - Complete UI for managing all application settings
+  - Organized into tabs for different categories of settings (General, Hosts File, UI, System)
+  - Form validation for user inputs
+  - Save, cancel, and reset to defaults functionality 
+  - Persistent storage of preferences using the configuration manager
+  - Clean, modern UI with appropriate styling
+  - Direct integration with main process through IPC communication
+  - DNS cache flushing functionality
+  - Backup directory selection via dialog
 
 ## Tech Stack
 - **Framework**: Electron with Electron Forge
@@ -82,7 +92,10 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
   - System tray implementation with context menu in place
   - Dynamic tray menu with host entries and actions
   - Main window hidden by default (tray-based app)
-- **Renderer Process**: Will manage UI windows (preferences, settings)
+- **Renderer Process**: Manages UI windows (preferences, settings)
+  - Preferences window implemented with tabbed interface
+  - Form controls for all configuration options
+  - IPC communication with main process for configuration changes
 - **Core Services**:
   - Hosts file parser service (implemented)
     - Reads and parses hosts file
@@ -126,7 +139,11 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
 - Using chokidar for file watching due to its reliability across platforms
 - Using sudo-prompt for permission elevation due to its cross-platform support
 - Using auto-launch for system startup integration due to its cross-platform support
+- Tabbed preferences window for better organization of settings
 
 ## Next Steps
-- Create preferences/settings window
-- Add host entry grouping functionality
+- Implement host entry grouping functionality
+- Enhance backup and restore functionality
+- Add notification system for changes
+- Comprehensive testing on all target platforms
+- Set up build process with electron-builder

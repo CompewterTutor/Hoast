@@ -20,6 +20,7 @@ const createWindow = () => {
       preload: path.join(__dirname, 'preload.js'),
     },
     show: false, // Hide window initially as we're making a tray app
+    icon: path.join(__dirname, '../assets/icons/icon.ico'), // Set app window icon
   });
 
   // and load the index.html of the app.
@@ -41,15 +42,23 @@ const createWindow = () => {
 };
 
 const createTray = () => {
-  // Create a default tray icon (we'll replace this with a custom icon later)
-  const icon = nativeImage.createEmpty(); // Placeholder for now
-  
-  // On macOS, the tray icon should be template image (for dark/light mode)
+  // Choose appropriate icon based on platform
   if (process.platform === 'darwin') {
-    // This will be replaced with a proper icon later
+    // Use template image for macOS (supports dark/light mode)
+    const iconPath = path.join(__dirname, '../assets/icons/16x16.png');
+    const macIcon = nativeImage.createFromPath(iconPath);
+    macIcon.setTemplateImage(true);
+    tray = new Tray(macIcon);
+  } else if (process.platform === 'win32') {
+    // Use ICO for Windows
+    const iconPath = path.join(__dirname, '../assets/icons/icon.ico');
+    tray = new Tray(iconPath);
+  } else {
+    // Use PNG for Linux and other platforms
+    const iconPath = path.join(__dirname, '../assets/icons/48x48.png');
+    tray = new Tray(iconPath);
   }
 
-  tray = new Tray(icon);
   tray.setToolTip('Hoast - Hosts File Manager');
 
   // Create the tray menu
@@ -108,6 +117,15 @@ app.whenReady().then(() => {
   createWindow();
   createTray();
 });
+
+// Linux requires explicit setting of the app icon using different method
+if (process.platform === 'linux') {
+  // Use appropriate icon for Linux platform
+  const iconPath = path.join(__dirname, '../assets/icons/512x512.png');
+  if (mainWindow) {
+    mainWindow.setIcon(nativeImage.createFromPath(iconPath));
+  }
+}
 
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits

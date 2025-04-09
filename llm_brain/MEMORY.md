@@ -12,6 +12,7 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
 - Core application structure set up with main and renderer processes
 - System tray functionality implemented with a basic menu
 - TypeScript type declarations added for dependencies
+- Application icons implemented for all platforms (macOS, Windows, Linux)
 
 ## Tech Stack
 - **Framework**: Electron with Electron Forge
@@ -46,7 +47,6 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
 - Using Electron Forge with Vite for better development experience and faster builds
 
 ## Next Steps
-- Create proper icon assets for the tray and application
 - Implement hosts file parser service
 - Set up testing framework
 - Create preferences window UI

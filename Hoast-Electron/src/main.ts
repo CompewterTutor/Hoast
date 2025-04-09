@@ -67,39 +67,83 @@ export const createWindow = () => {
 };
 
 export const createTray = () => {
-  // Choose appropriate icon based on platform
-  if (process.platform === 'darwin') {
-    // Use template image for macOS (supports dark/light mode)
-    const iconPath = path.join(__dirname, '../assets/icons/16x16.png');
-    const macIcon = nativeImage.createFromPath(iconPath);
-    macIcon.setTemplateImage(true); // Template image support for macOS dark/light modes
-    tray = new Tray(macIcon);
-  } else if (process.platform === 'win32') {
-    // Use ICO for Windows
-    const iconPath = path.join(__dirname, '../assets/icons/icon.ico');
-    tray = new Tray(iconPath);
-  } else {
-    // Use PNG for Linux and other platforms
-    const iconPath = path.join(__dirname, '../assets/icons/48x48.png');
-    tray = new Tray(iconPath);
-  }
-
-  tray.setToolTip('Hoast - Hosts File Manager');
-
-  // Create the tray menu
-  updateTrayMenu();
-
-  // Add a click handler to show/hide the main window on click (macOS convention)
-  if (process.platform === 'darwin') {
-    tray.on('click', () => {
-      if (mainWindow) {
-        if (mainWindow.isVisible()) {
-          mainWindow.hide();
-        } else {
-          mainWindow.show();
+  try {
+    console.log("Creating tray icon...");
+    // Choose appropriate icon based on platform
+    if (process.platform === 'darwin') {
+      // Use template image for macOS (supports dark/light mode)
+      console.log("Using macOS specific tray icon");
+      const iconPath = path.join(__dirname, '../assets/icons/16x16.png');
+      console.log("Icon path:", iconPath);
+      
+      // Check if file exists
+      if (!fs.existsSync(iconPath)) {
+        console.error(`Tray icon file not found at: ${iconPath}`);
+        
+        // Try alternative paths
+        const alternativePaths = [
+          path.resolve(app.getAppPath(), 'assets/icons/16x16.png'),
+          path.resolve(app.getAppPath(), 'assets/icons/icon.png'),
+          path.resolve(app.getAppPath(), 'assets/icons/icon.icns')
+        ];
+        
+        let foundIcon = false;
+        for (const altPath of alternativePaths) {
+          if (fs.existsSync(altPath)) {
+            console.log(`Found alternative icon at: ${altPath}`);
+            const macIcon = nativeImage.createFromPath(altPath);
+            macIcon.setTemplateImage(true); // Template image support for macOS dark/light modes
+            tray = new Tray(macIcon);
+            foundIcon = true;
+            break;
+          }
         }
+        
+        if (!foundIcon) {
+          // As a last resort, use a built-in icon or create one
+          console.log("Creating fallback icon");
+          const emptyIcon = nativeImage.createEmpty();
+          tray = new Tray(emptyIcon);
+        }
+      } else {
+        const macIcon = nativeImage.createFromPath(iconPath);
+        macIcon.setTemplateImage(true); // Template image support for macOS dark/light modes
+        tray = new Tray(macIcon);
       }
-    });
+    } else if (process.platform === 'win32') {
+      // Use ICO for Windows
+      const iconPath = path.join(__dirname, '../assets/icons/icon.ico');
+      tray = new Tray(iconPath);
+    } else {
+      // Use PNG for Linux and other platforms
+      const iconPath = path.join(__dirname, '../assets/icons/48x48.png');
+      tray = new Tray(iconPath);
+    }
+
+    tray.setToolTip('Hoast - Hosts File Manager');
+
+    // Create the tray menu
+    updateTrayMenu();
+
+    // Add a click handler to show/hide the main window on click (macOS convention)
+    if (process.platform === 'darwin') {
+      tray.on('click', () => {
+        if (mainWindow) {
+          if (mainWindow.isVisible()) {
+            mainWindow.hide();
+          } else {
+            mainWindow.show();
+          }
+        }
+      });
+    }
+    console.log("Tray icon created successfully");
+  } catch (error) {
+    console.error("Failed to create tray icon:", error);
+    dialog.showErrorBox(
+      'Tray Error',
+      `Failed to initialize the application tray: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 };
 

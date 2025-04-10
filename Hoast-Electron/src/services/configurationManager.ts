@@ -41,6 +41,11 @@ export class ConfigurationManager extends EventEmitter {
       maxBackups: 10,
       autoReloadOnExternalChanges: true,
     },
+    groups: {
+      enabled: true,
+      expandGroupsByDefault: false,
+      autoGroupByPatterns: true,
+    },
     ui: {
       groupEntriesByStatus: true,
       showConfirmationDialogs: true,

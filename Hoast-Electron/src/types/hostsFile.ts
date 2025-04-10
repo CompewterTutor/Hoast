@@ -20,6 +20,8 @@ export interface HostEntry {
   lineNumber: number;
   /** The raw text of the original line */
   raw: string;
+  /** Group ID this entry belongs to (optional) */
+  groupId?: string;
 }
 
 /**
@@ -30,6 +32,22 @@ export interface CommentLine {
   raw: string;
   /** Original line number in the hosts file */
   lineNumber: number;
+}
+
+/**
+ * Represents a group of host entries
+ */
+export interface HostGroup {
+  /** Unique identifier for the group */
+  id: string;
+  /** Display name of the group */
+  name: string;
+  /** Optional description of this group */
+  description?: string;
+  /** Color to use for the group in the UI (hex code) */
+  color?: string;
+  /** Whether the entire group is enabled */
+  enabled: boolean;
 }
 
 /**

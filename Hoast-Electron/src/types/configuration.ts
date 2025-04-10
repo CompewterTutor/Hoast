@@ -27,6 +27,18 @@ export interface HostsFilePreferences {
 }
 
 /**
+ * Group-related preferences
+ */
+export interface GroupPreferences {
+  /** Whether to enable host entry grouping feature */
+  enabled: boolean;
+  /** Whether to expand all groups by default in the tray menu */
+  expandGroupsByDefault: boolean;
+  /** Whether to automatically assign entries to groups based on hostname patterns */
+  autoGroupByPatterns: boolean;
+}
+
+/**
  * UI display preferences
  */
 export interface UIPreferences {
@@ -60,6 +72,8 @@ export interface AppConfiguration {
   startup: StartupPreferences;
   /** Hosts file operation preferences */
   hostsFile: HostsFilePreferences;
+  /** Group-related preferences */
+  groups: GroupPreferences;
   /** UI display preferences */
   ui: UIPreferences;
   /** System integration preferences */

@@ -250,13 +250,15 @@ export class HostsFileWriter extends EventEmitter {
             // Windows command using copy
             command = `cmd.exe /c copy "${tempFilePath}" "${filePath}" /Y`;
           } else {
-            // Unix-based command using cat
-            command = `cat "${tempFilePath}" > "${filePath}" && rm "${tempFilePath}"`;
+            // Unix-based command using tee instead of cat + redirection
+            // tee requires sudo and will write directly to the file with elevated permissions
+            command = `tee "${filePath}" < "${tempFilePath}" && rm "${tempFilePath}"`;
           }
           
           // Execute the command with elevated permissions
           sudo.exec(command, {
             name: 'Hoast - Hosts File Manager',
+            icns: process.platform === 'darwin' ? path.join(process.resourcesPath, 'icon.icns') : undefined, // macOS icon
           }, (error, stdout, stderr) => {
             // Clean up temp file on Unix-like platforms is done in the command
             // For Windows, we need to clean up the temp file here

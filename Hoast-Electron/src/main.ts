@@ -1328,28 +1328,18 @@ function registerIpcHandlers(): void {
  */
 async function showAddGroupDialog(entries?: HostEntry[]): Promise<void> {
   try {
-    // Create a dialog with form inputs
+    // Create an input dialog for the group name
     const result = await dialog.showMessageBox({
       type: 'question',
       title: 'Add New Group',
-      message: 'Create a new group for host entries',
-      buttons: ['Cancel', 'Create Group'],
+      message: 'Enter a name for the new group:',
+      buttons: ['Cancel', 'Create'],
       defaultId: 1,
       cancelId: 0,
-      customItems: [
-        { 
-          id: 'name',
-          type: 'input',
-          label: 'Group Name',
-          placeholder: 'Enter group name'
-        },
-        { 
-          id: 'description',
-          type: 'input',
-          label: 'Description (optional)',
-          placeholder: 'Enter description'
-        }
-      ]
+      inputField: {
+        placeholder: 'Group Name',
+        defaultValue: 'New Group'
+      }
     });
     
     // User canceled
@@ -1357,14 +1347,11 @@ async function showAddGroupDialog(entries?: HostEntry[]): Promise<void> {
       return;
     }
     
-    // Extract form values
-    const formValues = result.values || {};
-    const groupName = formValues['name'] as string || 'New Group';
-    const groupDescription = formValues['description'] as string || undefined;
+    const groupName = result.inputValue || 'New Group';
     
     // Create the new group
     const newGroup = await groupManager.createGroup(groupName, {
-      description: groupDescription,
+      description: `Created on ${new Date().toLocaleDateString()}`
     });
     
     // If entries were provided, assign them to the new group

@@ -78,6 +78,14 @@ export const createWindow = () => {
 export const createTray = () => {
   try {
     console.log("Creating tray icon...");
+    
+    // Create a simple menu first to ensure the tray has a menu immediately
+    const initialMenu = Menu.buildFromTemplate([
+      { label: 'Loading Hoast...', enabled: false },
+      { type: 'separator' },
+      { label: 'Quit', click: () => { app.quit(); } }
+    ]);
+    
     // Choose appropriate icon based on platform
     if (process.platform === 'darwin') {
       // Use template image for macOS (supports dark/light mode)
@@ -87,6 +95,9 @@ export const createTray = () => {
       const iconPaths = [
         path.join(__dirname, '../assets/icons/16x16.png'),
         path.resolve(app.getAppPath(), 'assets/icons/16x16.png'),
+        path.join(app.getAppPath(), '1x/HoastTrayIconTemplate.png'),
+        path.join(app.getAppPath(), 'assets/1x/HoastTrayIconTemplate.png'),
+        path.join(__dirname, '../assets/1x/HoastTrayIconTemplate.png'),
         path.join(__dirname, '../assets/icons/icon.png'),
         path.resolve(app.getAppPath(), 'assets/icons/icon.png'),
         path.join(__dirname, '../assets/icons/icon.icns'),
@@ -136,23 +147,60 @@ export const createTray = () => {
       tray = new Tray(iconPath);
     }
 
+    // Set initial menu immediately to ensure there's always a menu
+    tray.setContextMenu(initialMenu);
     tray.setToolTip('Hoast - Hosts File Manager');
 
-    // Create the tray menu
-    updateTrayMenu();
-
-    // Add a click handler to show/hide the main window on click (macOS convention)
+    // Platform-specific event setup
     if (process.platform === 'darwin') {
+      // Ensure we're not setting multiple listeners
+      tray.removeAllListeners('click');
+      tray.removeAllListeners('right-click');
+      tray.removeAllListeners('double-click');
+      
+      // For macOS, setup click handlers
       tray.on('click', () => {
+        try {
+          // Force the context menu to show
+          tray?.popUpContextMenu();
+        } catch (error) {
+          console.error('Error showing tray menu on click:', error);
+        }
+      });
+      
+      tray.on('right-click', () => {
+        try {
+          tray?.popUpContextMenu();
+        } catch (error) {
+          console.error('Error showing tray menu on right-click:', error);
+        }
+      });
+      
+      tray.on('double-click', () => {
         if (mainWindow) {
-          if (mainWindow.isVisible()) {
-            mainWindow.hide();
-          } else {
-            mainWindow.show();
-          }
+          mainWindow.show();
+        }
+      });
+    } else {
+      // For Windows/Linux
+      tray.removeAllListeners('click');
+      
+      tray.on('click', () => {
+        try {
+          tray?.popUpContextMenu();
+        } catch (error) {
+          console.error('Error showing tray menu on click:', error);
         }
       });
     }
+    
+    // Now update with the real menu (async to ensure tray is created first)
+    setTimeout(() => {
+      updateTrayMenu().catch(error => {
+        console.error('Error updating tray menu:', error);
+      });
+    }, 100);
+    
     console.log("Tray icon created successfully");
   } catch (error) {
     console.error("Failed to create tray icon:", error);
@@ -363,7 +411,7 @@ async function updateTrayMenu(): Promise<void> {
                 },
                 {
                   label: 'Add to Group',
-                  submenu: await createAddToGroupSubmenu(entry)
+                  submenu: createAddToGroupSubmenu(entry)
                 },
                 {
                   label: 'Remove',
@@ -502,35 +550,41 @@ async function updateTrayMenu(): Promise<void> {
 
 /**
  * Create submenu for adding an entry to a group
+ * This function returns a promise that resolves to menu items
  */
-async function createAddToGroupSubmenu(entry: HostEntry): Promise<Electron.MenuItemConstructorOptions[]> {
-  await groupManager.loadGroups();
-  const groups = groupManager.getGroups();
-  
-  const submenu: Electron.MenuItemConstructorOptions[] = [];
-  
-  // Add "Create New Group..." option
-  submenu.push({
-    label: 'Create New Group...',
-    click: () => {
-      showAddGroupDialog([entry]);
+function createAddToGroupSubmenu(entry: HostEntry): Electron.MenuItemConstructorOptions[] {
+  // Create the submenu with synchronous options
+  const submenu: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: 'Create New Group...',
+      click: () => {
+        showAddGroupDialog([entry]);
+      }
     }
+  ];
+  
+  // Get groups - we'll load them asynchronously when the click happens
+  // This way we don't need to use await in this function
+  submenu.push({ type: 'separator' });
+  submenu.push({
+    label: 'Loading groups...',
+    enabled: false
   });
   
-  if (groups.length > 0) {
-    submenu.push({ type: 'separator' });
-    
-    // Add existing groups
-    for (const group of groups) {
-      submenu.push({
-        label: group.name,
-        click: async () => {
-          await groupManager.assignEntriesToGroup(group.id, [entry]);
-          updateTrayMenu();
-        }
-      });
+  // This is a workaround - when the menu is shown, we'll update it with actual groups
+  setTimeout(async () => {
+    try {
+      await groupManager.loadGroups();
+      const groups = groupManager.getGroups();
+      
+      // If we have groups, rebuild the tray menu to include them
+      if (groups.length > 0) {
+        updateTrayMenu();
+      }
+    } catch (error) {
+      console.error('Error loading groups for submenu:', error);
     }
-  }
+  }, 10);
   
   return submenu;
 }
@@ -699,6 +753,7 @@ if (process.platform === 'linux') {
   // Use appropriate icon for Linux platform
   const iconPath = path.join(__dirname, '../assets/icons/512x512.png');
   if (mainWindow) {
+    // Fix async error - use synchronous icon setting method
     mainWindow.setIcon(nativeImage.createFromPath(iconPath));
   }
 }
@@ -1328,26 +1383,24 @@ function registerIpcHandlers(): void {
  */
 async function showAddGroupDialog(entries?: HostEntry[]): Promise<void> {
   try {
-    // Create an input dialog for the group name
-    const result = await dialog.showMessageBox({
+    // Create a simple message dialog first
+    const { response } = await dialog.showMessageBox({
       type: 'question',
       title: 'Add New Group',
-      message: 'Enter a name for the new group:',
+      message: 'Enter a name for the new group',
       buttons: ['Cancel', 'Create'],
       defaultId: 1,
-      cancelId: 0,
-      inputField: {
-        placeholder: 'Group Name',
-        defaultValue: 'New Group'
-      }
+      cancelId: 0
     });
     
     // User canceled
-    if (result.response === 0) {
+    if (response === 0) {
       return;
     }
     
-    const groupName = result.inputValue || 'New Group';
+    // Since standard Electron doesn't have an input dialog, use a simple prompt
+    // with a default value
+    const groupName = prompt('Enter a name for the new group:', 'New Group') || 'New Group';
     
     // Create the new group
     const newGroup = await groupManager.createGroup(groupName, {
@@ -1384,41 +1437,24 @@ async function showAddGroupDialog(entries?: HostEntry[]): Promise<void> {
  */
 async function showEditGroupDialog(group: HostGroup): Promise<void> {
   try {
-    // Create a dialog with form inputs
-    const result = await dialog.showMessageBox({
+    // Create a simple dialog first
+    const { response } = await dialog.showMessageBox({
       type: 'question',
       title: 'Edit Group',
       message: `Edit group "${group.name}"`,
       buttons: ['Cancel', 'Save Changes'],
       defaultId: 1,
-      cancelId: 0,
-      customItems: [
-        { 
-          id: 'name',
-          type: 'input',
-          label: 'Group Name',
-          placeholder: 'Enter group name',
-          value: group.name
-        },
-        { 
-          id: 'description',
-          type: 'input',
-          label: 'Description (optional)',
-          placeholder: 'Enter description',
-          value: group.description || ''
-        }
-      ]
+      cancelId: 0
     });
     
     // User canceled
-    if (result.response === 0) {
+    if (response === 0) {
       return;
     }
     
-    // Extract form values
-    const formValues = result.values || {};
-    const groupName = formValues['name'] as string || group.name;
-    const groupDescription = formValues['description'] as string || undefined;
+    // Since standard Electron doesn't have complex forms, use separate prompts
+    const groupName = prompt('Enter group name:', group.name) || group.name;
+    const groupDescription = prompt('Enter description (optional):', group.description || '') || undefined;
     
     // Update the group
     await groupManager.updateGroup(group.id, {
@@ -1463,27 +1499,7 @@ async function showAutoGroupDialog(): Promise<void> {
       defaultId: 1,
       cancelId: 0,
       checkboxLabel: 'Create "Ungrouped" group for entries that don\'t match any patterns',
-      checkboxChecked: true,
-      customItems: [
-        {
-          id: 'localGroup',
-          type: 'checkbox',
-          label: 'Create "Local" group for localhost entries',
-          checked: true
-        },
-        {
-          id: 'devGroup',
-          type: 'checkbox',
-          label: 'Create "Development" group for .dev, .test, .local domains',
-          checked: true
-        },
-        {
-          id: 'ipGroup',
-          type: 'checkbox',
-          label: 'Group by IP address ranges (127.0.0.x, 192.168.x.x, etc.)',
-          checked: false
-        }
-      ]
+      checkboxChecked: true
     });
     
     // User canceled
@@ -1493,53 +1509,38 @@ async function showAutoGroupDialog(): Promise<void> {
     
     // Extract options
     const createUngroupedGroup = result.checkboxChecked;
-    const formValues = result.values || {};
-    const createLocalGroup = formValues['localGroup'] === true;
-    const createDevGroup = formValues['devGroup'] === true;
-    const groupByIpRanges = formValues['ipGroup'] === true;
     
     // Build criteria for auto-grouping
-    const criteria = [];
-    
-    if (createLocalGroup) {
-      criteria.push({
+    const criteria = [
+      {
         name: 'Local',
         description: 'localhost entries',
         filter: {
           hostnamePattern: /localhost|local$|^127\./i
         }
-      });
-    }
-    
-    if (createDevGroup) {
-      criteria.push({
+      },
+      {
         name: 'Development',
         description: 'Development and testing domains',
         filter: {
           hostnamePattern: /\.(dev|test|local|localhost)$/i
         }
-      });
-    }
-    
-    if (groupByIpRanges) {
-      // Add IP-based groups
-      criteria.push(
-        {
-          name: 'Loopback',
-          description: '127.0.0.x IP addresses',
-          filter: {
-            ipPattern: /^127\./
-          }
-        },
-        {
-          name: 'Private Network',
-          description: '192.168.x.x and 10.x.x.x IP addresses',
-          filter: {
-            ipPattern: /^(192\.168\.|10\.)/
-          }
+      },
+      {
+        name: 'Loopback',
+        description: '127.0.0.x IP addresses',
+        filter: {
+          ipPattern: /^127\./
         }
-      );
-    }
+      },
+      {
+        name: 'Private Network',
+        description: '192.168.x.x and 10.x.x.x IP addresses',
+        filter: {
+          ipPattern: /^(192\.168\.|10\.)/
+        }
+      }
+    ];
     
     // Perform the auto-grouping
     await groupManager.autoGroupEntries(parsedHostsFile, {
@@ -1696,63 +1697,24 @@ async function showAddHostEntryDialog(): Promise<void> {
     await groupManager.loadGroups();
     const groups = groupManager.getGroups();
     
-    // Create dropdown options for the groups
-    const groupOptions = [
-      { id: 'none', label: 'None (No group)' },
-      ...groups.map(group => ({
-        id: group.id,
-        label: group.name
-      }))
-    ];
-    
-    // Create a dialog with form inputs
-    const result = await dialog.showMessageBox({
+    // Create a simple dialog first to confirm the user wants to add an entry
+    const confirmResult = await dialog.showMessageBox({
       type: 'question',
       title: 'Add New Host Entry',
       message: 'Add a new entry to your hosts file',
-      buttons: ['Cancel', 'Add Entry'],
+      buttons: ['Cancel', 'Continue'],
       defaultId: 1,
-      cancelId: 0,
-      customItems: [
-        { 
-          id: 'ip',
-          type: 'input',
-          label: 'IP Address',
-          placeholder: '127.0.0.1',
-          value: '127.0.0.1'
-        },
-        { 
-          id: 'hostname',
-          type: 'input',
-          label: 'Hostname',
-          placeholder: 'example.com'
-        },
-        {
-          id: 'enabled',
-          type: 'checkbox',
-          label: 'Enabled',
-          checked: true
-        },
-        {
-          id: 'group',
-          type: 'select',
-          label: 'Assign to Group',
-          options: groupOptions
-        }
-      ]
+      cancelId: 0
     });
     
     // User canceled
-    if (result.response === 0) {
+    if (confirmResult.response === 0) {
       return;
     }
     
-    // Extract form values
-    const formValues = result.values || {};
-    const ip = formValues['ip'] as string || '127.0.0.1';
-    const hostname = formValues['hostname'] as string;
-    const enabled = formValues['enabled'] === true;
-    const groupId = formValues['group'] as string;
+    // Use simple prompts for each field since Electron doesn't support complex forms
+    const ip = prompt('Enter IP address:', '127.0.0.1') || '127.0.0.1';
+    const hostname = prompt('Enter hostname:', 'example.com');
     
     // Validate hostname
     if (!hostname || hostname.trim() === '') {
@@ -1761,6 +1723,46 @@ async function showAddHostEntryDialog(): Promise<void> {
         'A hostname is required.'
       );
       return;
+    }
+    
+    // Ask if the entry should be enabled
+    const enabledResult = await dialog.showMessageBox({
+      type: 'question',
+      title: 'Enable Entry',
+      message: 'Should this entry be enabled?',
+      buttons: ['No (Disabled)', 'Yes (Enabled)'],
+      defaultId: 1
+    });
+    const enabled = enabledResult.response === 1;
+    
+    // If there are groups, ask the user to select one
+    let groupId: string | undefined = undefined;
+    if (groups.length > 0) {
+      const groupSelectResult = await dialog.showMessageBox({
+        type: 'question',
+        title: 'Assign to Group',
+        message: 'Would you like to assign this entry to a group?',
+        buttons: ['Skip', 'Select Group'],
+        defaultId: 1
+      });
+      
+      if (groupSelectResult.response === 1) {
+        // Show a list of groups
+        const groupOptions = ['None'].concat(groups.map(g => g.name));
+        const groupListResult = await dialog.showMessageBox({
+          type: 'question',
+          title: 'Select Group',
+          message: 'Select a group for this entry:',
+          buttons: groupOptions,
+          cancelId: 0
+        });
+        
+        // If user selected a group (not "None")
+        if (groupListResult.response > 0) {
+          // Subtract 1 because "None" was added at the beginning
+          groupId = groups[groupListResult.response - 1].id;
+        }
+      }
     }
     
     // Create the host entry
@@ -1789,12 +1791,19 @@ async function showAddHostEntryDialog(): Promise<void> {
     );
     
     // If an entry was successfully added and a group was selected, assign the entry to the group
-    if (addedEntry && groupId && groupId !== 'none') {
+    if (addedEntry && groupId) {
       await groupManager.assignEntriesToGroup(groupId, [addedEntry]);
     }
     
     // Update the tray menu to show the new entry
     updateTrayMenu();
+    
+    // Show success message
+    dialog.showMessageBox({
+      type: 'info',
+      title: 'Host Entry Added',
+      message: `Successfully added entry: ${hostname} (${ip})`
+    });
     
   } catch (error) {
     console.error('Error adding host entry:', error);

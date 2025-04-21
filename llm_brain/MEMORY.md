@@ -33,17 +33,21 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
   - Includes backup functionality for safety
   - Emits events for success and error cases
   - Includes comprehensive tests for all functionality
+  - Backup files now stored in user directory (~/.hoast/backups) to prevent permission issues
 - Permission elevation handling implemented
   - Uses sudo-prompt for cross-platform permission elevation
   - Creates temporary files for operations requiring elevated permissions
   - Platform-specific command execution
   - Error handling for permission failures
+  - Robust icon handling to prevent errors in production builds
+  - Fixed app name validation to meet sudo-prompt requirements
 - Enhanced tray menu functionality implemented
   - Dynamic menu items for host entries
   - Visual indicators for enabled/disabled entries (✅/❌)
   - Organized grouping of enabled and disabled entries
   - Entry-specific context menus with enable/disable and remove options
   - Add New Entry functionality with form validation
+  - Fixed IPC communication for Add New Entry functionality to properly pass form data
   - Refresh functionality to reload the hosts file
   - Platform-specific optimizations (icons, behavior)
   - Confirmation dialogs for destructive actions
@@ -113,10 +117,13 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
     - Handles operations like adding, updating, removing entries
     - Creates backups before writing changes
     - Preserves formatting and comments
+    - Now stores backups in user directory (~/.hoast/backups) instead of system locations
   - Permission elevation handler (implemented)
     - Uses sudo-prompt for cross-platform elevation
     - Platform-specific command execution
     - Temporary file creation for elevated operations
+    - Robust icon handling to prevent errors when icon path is invalid
+    - Fixed app name validation to meet sudo-prompt requirements
   - Configuration manager (implemented)
     - Manages user preferences and application settings
     - Handles loading, saving, and updating configuration
@@ -140,10 +147,11 @@ Hoast is a cross-platform Electron application that lives in the system tray/men
 - Using sudo-prompt for permission elevation due to its cross-platform support
 - Using auto-launch for system startup integration due to its cross-platform support
 - Tabbed preferences window for better organization of settings
+- Store backup files in user directory (~/.hoast/backups) to prevent permission issues
+- Robust icon handling for sudo-prompt dialog to prevent production build errors
 
 ## Next Steps
-- Implement host entry grouping functionality
-- Enhance backup and restore functionality
+- Improve UI for group management
 - Add notification system for changes
 - Comprehensive testing on all target platforms
 - Set up build process with electron-builder

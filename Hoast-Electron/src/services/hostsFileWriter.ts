@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { EventEmitter } from 'events';
 import { HostEntry, CommentLine, HostsFileLine, ParsedHostsFile } from '../types/hostsFile';
 import * as sudo from 'sudo-prompt';
@@ -255,11 +256,46 @@ export class HostsFileWriter extends EventEmitter {
             command = `tee "${filePath}" < "${tempFilePath}" && rm "${tempFilePath}"`;
           }
           
+          // Define sudo options with safe icon handling
+          const sudoOptions: any = {
+            name: 'Hoast', // Simplified name to meet sudo-prompt requirements
+          };
+          
+          // Only use the icon on macOS if we can determine it exists
+          if (process.platform === 'darwin') {
+            try {
+              // Try to find the icon in various possible locations
+              const iconPaths = [
+                path.join(process.resourcesPath || '', 'icon.icns'),
+                path.join(__dirname, '../../assets/icons/icon.icns'),
+                path.join(process.cwd(), 'assets/icons/icon.icns')
+              ];
+              
+              // We need to use the built-in fs module for synchronous operations
+              for (const iconPath of iconPaths) {
+                try {
+                  // Use synchronous check to avoid async complexity
+                  if (existsSync(iconPath)) {
+                    sudoOptions.icns = iconPath;
+                    console.log(`Using icon at: ${iconPath}`);
+                    break;
+                  }
+                } catch (err) {
+                  // Ignore errors and try next path
+                }
+              }
+              
+              if (!sudoOptions.icns) {
+                console.log('No suitable icon found, proceeding without custom icon');
+              }
+            } catch (error) {
+              console.warn('Error finding icon for sudo prompt:', error);
+              // Continue without an icon if there's an error
+            }
+          }
+          
           // Execute the command with elevated permissions
-          sudo.exec(command, {
-            name: 'Hoast - Hosts File Manager',
-            icns: process.platform === 'darwin' ? path.join(process.resourcesPath, 'icon.icns') : undefined, // macOS icon
-          }, (error, stdout, stderr) => {
+          sudo.exec(command, sudoOptions, (error, stdout, stderr) => {
             // Clean up temp file on Unix-like platforms is done in the command
             // For Windows, we need to clean up the temp file here
             if (process.platform === 'win32') {
@@ -418,9 +454,30 @@ export class HostsFileWriter extends EventEmitter {
    * @returns Promise resolving to the backup file path
    */
   private async createBackup(filePath: string): Promise<string> {
-    const backupPath = `${filePath}.backup.${Date.now()}`;
-    await fs.copyFile(filePath, backupPath);
-    return backupPath;
+    try {
+      // Create a backup in the user's home directory instead of next to the hosts file
+      const homeDir = os.homedir();
+      const appDataDir = path.join(homeDir, '.hoast', 'backups');
+      
+      // Create the directory if it doesn't exist
+      await fs.mkdir(appDataDir, { recursive: true });
+      
+      // Get the filename part of the hosts file
+      const hostsFileName = path.basename(filePath);
+      
+      // Create a timestamped backup filename
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const backupPath = path.join(appDataDir, `${hostsFileName}.backup.${timestamp}`);
+      
+      // Copy the hosts file to the backup location
+      await fs.copyFile(filePath, backupPath);
+      
+      console.log(`Created backup at ${backupPath}`);
+      return backupPath;
+    } catch (error) {
+      console.error(`Failed to create backup: ${error}`);
+      throw error;
+    }
   }
   
   /**
@@ -459,11 +516,45 @@ export class HostsFileWriter extends EventEmitter {
       // Format the command and arguments into a single string
       const fullCommand = `${command} ${args.join(' ')}`;
       
+      // Define sudo options with safe icon handling
+      const sudoOptions: any = {
+        name: 'Hoast', // Simplified name to meet sudo-prompt requirements
+      };
+      
+      // Only use the icon on macOS if we can determine it exists
+      if (process.platform === 'darwin') {
+        try {
+          // Try to find the icon in various possible locations
+          const iconPaths = [
+            path.join(process.resourcesPath || '', 'icon.icns'),
+            path.join(__dirname, '../../assets/icons/icon.icns'),
+            path.join(process.cwd(), 'assets/icons/icon.icns')
+          ];
+          
+          for (const iconPath of iconPaths) {
+            try {
+              // Use synchronous check to avoid async complexity
+              if (existsSync(iconPath)) {
+                sudoOptions.icns = iconPath;
+                console.log(`Using icon at: ${iconPath}`);
+                break;
+              }
+            } catch (err) {
+              // Ignore errors and try next path
+            }
+          }
+          
+          if (!sudoOptions.icns) {
+            console.log('No suitable icon found, proceeding without custom icon');
+          }
+        } catch (error) {
+          console.warn('Error finding icon for sudo prompt:', error);
+          // Continue without an icon if there's an error
+        }
+      }
+      
       // Execute the command with elevated permissions
-      sudo.exec(fullCommand, {
-        name: 'Hoast - Hosts File Manager',
-        icns: process.platform === 'darwin' ? path.join(process.resourcesPath, 'icon.icns') : undefined, // macOS icon
-      }, (error, stdout, stderr) => {
+      sudo.exec(fullCommand, sudoOptions, (error, stdout, stderr) => {
         if (error) {
           reject(new Error(`Failed to execute "${description}": ${stderr || error.message}`));
         } else {

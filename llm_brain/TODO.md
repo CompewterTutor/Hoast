@@ -19,6 +19,7 @@
   - [x] Convert structured data back to text
   - [x] Write to file with proper formatting
   - [x] Handle permission elevation
+  - [x] Implement backup functionality
 - [x] Set up configuration manager for app settings
 
 ## Phase 3: UI Implementation
@@ -26,6 +27,7 @@
   - [x] Create dynamic menu with host entries
   - [x] Implement enable/disable toggles
   - [x] Add "Add New Entry" functionality
+  - [x] Fix Add New Entry functionality
   - [x] Add "Refresh" option
 - [x] Create preferences/settings window
   - [x] Launch on startup option
@@ -36,16 +38,18 @@
 - [x] Implement permission elevation for writing to `/etc/hosts`
   - [x] Research and integrate sudo-prompt or electron-sudo
   - [x] Add error handling for permission failures
+  - [x] Fix icon and name validation errors in sudo-prompt
 - [x] Add support for DNS cache flushing
 - [x] Implement auto-launch on system startup
 - [x] Handle external file changes
 
 ## Phase 5: Enhanced Features
 - [ ] Add host entry grouping functionality
-  - [ ] Group creation and management
-  - [ ] Group enable/disable
-  - [ ] UI for group management
-- [ ] Implement backup and restore functionality
+  - [x] Group creation and management
+  - [x] Group enable/disable
+  - [ ] Improve UI for group management
+- [x] Implement backup and restore functionality
+  - [x] Fix backup location to use user directory
 - [ ] Add notification system for changes
 
 ## Phase 6: Testing & Refinement
@@ -54,7 +58,7 @@
   - [ ] Windows testing
   - [ ] Linux testing
 - [ ] Performance optimization
-- [ ] Error handling improvements
+- [x] Error handling improvements
 - [ ] UX refinements based on testing
 
 ## Phase 7: Packaging & Distribution

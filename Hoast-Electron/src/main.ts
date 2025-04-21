@@ -818,13 +818,17 @@ function showHostsFileSuccess(message: string): void {
  */
 async function addHostEntryWithPermissions(parsedFile: ParsedHostsFile, newEntry: Omit<HostEntry, 'lineNumber' | 'raw'>): Promise<void> {
   try {
-    const useElevated = needsElevatedPermissions();
+    // Always use elevated permissions for hosts file modifications on macOS and Linux
+    const useElevated = true; // Override the needsElevatedPermissions check to force admin privileges
+    console.log(`Adding host entry for ${newEntry.hostname} with elevated permissions: ${useElevated}`);
+    
     const result = await hostsFileWriter.addHostEntry(parsedFile, newEntry, { 
       useElevatedPermissions: useElevated,
       createBackup: appConfig?.hostsFile?.createBackups ?? true
     });
     
     if (result.success) {
+      console.log(`Successfully added host entry: ${newEntry.hostname}`);
       showHostsFileSuccess(`Successfully added host entry: ${newEntry.hostname}`);
       
       // Check if we should flush DNS cache
@@ -832,9 +836,11 @@ async function addHostEntryWithPermissions(parsedFile: ParsedHostsFile, newEntry
         await flushDNSCache();
       }
     } else if (result.error) {
+      console.error(`Failed to add host entry: ${result.error.message}`);
       showHostsFileError(result.error);
     }
   } catch (error) {
+    console.error('Error in addHostEntryWithPermissions:', error);
     showHostsFileError(error instanceof Error ? error : new Error(String(error)));
   }
 }
@@ -1697,27 +1703,202 @@ async function showAddHostEntryDialog(): Promise<void> {
     await groupManager.loadGroups();
     const groups = groupManager.getGroups();
     
-    // Create a simple dialog first to confirm the user wants to add an entry
-    const confirmResult = await dialog.showMessageBox({
-      type: 'question',
-      title: 'Add New Host Entry',
-      message: 'Add a new entry to your hosts file',
-      buttons: ['Cancel', 'Continue'],
-      defaultId: 1,
-      cancelId: 0
+    // Create a BrowserWindow for our custom input form
+    const inputWindow = new BrowserWindow({
+      width: 450,
+      height: 350,
+      parent: mainWindow || undefined,
+      modal: true,
+      show: false,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      alwaysOnTop: true, // Make sure it's on top
+      webPreferences: {
+        nodeIntegration: true,
+        contextIsolation: false
+      }
     });
     
-    // User canceled
-    if (confirmResult.response === 0) {
+    // Create HTML content for our input form
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Add Host Entry</title>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica', 'Arial', sans-serif;
+            padding: 20px;
+            color: #333;
+            margin: 0;
+          }
+          label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+          }
+          input, select {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+          }
+          .actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 15px;
+          }
+          button {
+            padding: 8px 15px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+          }
+          .cancel {
+            background-color: #f1f1f1;
+            color: #333;
+          }
+          .save {
+            background-color: #0078D7;
+            color: white;
+          }
+          .checkbox-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+          }
+          .checkbox-container input {
+            width: auto;
+            margin-right: 10px;
+          }
+          form {
+            padding-bottom: 20px;
+          }
+        </style>
+      </head>
+      <body>
+        <form id="hostEntryForm">
+          <label for="ip">IP Address:</label>
+          <input type="text" id="ip" value="127.0.0.1" required>
+          
+          <label for="hostname">Hostname:</label>
+          <input type="text" id="hostname" value="example.com" required>
+          
+          <div class="checkbox-container">
+            <input type="checkbox" id="enabled" checked>
+            <label for="enabled">Enable this entry</label>
+          </div>
+          
+          ${groups.length > 0 ? `
+          <label for="group">Assign to Group (Optional):</label>
+          <select id="group">
+            <option value="">- None -</option>
+            ${groups.map(g => `<option value="${g.id}">${g.name}</option>`).join('')}
+          </select>
+          ` : ''}
+          
+          <div class="actions">
+            <button type="button" class="cancel" id="cancelBtn">Cancel</button>
+            <button type="submit" class="save" id="saveBtn">Add Entry</button>
+          </div>
+        </form>
+        
+        <script>
+          const form = document.getElementById('hostEntryForm');
+          const cancelBtn = document.getElementById('cancelBtn');
+          
+          cancelBtn.addEventListener('click', () => {
+            // Send a clear message before closing
+            const { ipcRenderer } = require('electron');
+            ipcRenderer.send('add-entry:cancel');
+            window.close();
+          });
+          
+          form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const ip = document.getElementById('ip').value;
+            const hostname = document.getElementById('hostname').value;
+            const enabled = document.getElementById('enabled').checked;
+            const groupSelect = document.getElementById('group');
+            const groupId = groupSelect ? groupSelect.value : '';
+            
+            // Use IPC to send data back to main process
+            const { ipcRenderer } = require('electron');
+            ipcRenderer.send('add-entry:submit', {
+              ip,
+              hostname,
+              enabled,
+              groupId: groupId || undefined
+            });
+            
+            window.close();
+          });
+        </script>
+      </body>
+      </html>
+    `;
+    
+    // Register IPC handlers before loading the content
+    ipcMain.handleOnce('add-entry:submit', (event, data) => {
+      formData = data;
+      return { success: true };
+    });
+    
+    ipcMain.handleOnce('add-entry:cancel', () => {
+      return { success: true };
+    });
+    
+    // Register regular IPC listeners for the form submission
+    const formDataPromise = new Promise<{ip: string; hostname: string; enabled: boolean; groupId?: string} | null>((resolve) => {
+      // Clean up any existing listeners first
+      ipcMain.removeAllListeners('add-entry:submit');
+      ipcMain.removeAllListeners('add-entry:cancel');
+      
+      ipcMain.once('add-entry:submit', (_event, data) => {
+        resolve(data);
+      });
+      
+      ipcMain.once('add-entry:cancel', () => {
+        resolve(null);
+      });
+      
+      // Also resolve with null if the window is closed without submission
+      inputWindow.once('closed', () => {
+        // Small delay to allow for IPC messages to be processed first
+        setTimeout(() => resolve(null), 100);
+      });
+    });
+    
+    // Load the HTML content
+    await inputWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+    
+    // Once loaded, show and focus the window to bring it to front
+    inputWindow.show();
+    inputWindow.focus();
+    
+    // On macOS, activate the app to bring it to the foreground
+    if (process.platform === 'darwin') {
+      app.focus({ steal: true });
+    }
+    
+    // Wait for the form data
+    const formData = await formDataPromise;
+    
+    // If the form was canceled or closed without data
+    if (!formData) {
+      console.log('Form was closed or canceled without submission');
       return;
     }
     
-    // Use simple prompts for each field since Electron doesn't support complex forms
-    const ip = prompt('Enter IP address:', '127.0.0.1') || '127.0.0.1';
-    const hostname = prompt('Enter hostname:', 'example.com');
-    
     // Validate hostname
-    if (!hostname || hostname.trim() === '') {
+    if (!formData.hostname || formData.hostname.trim() === '') {
       dialog.showErrorBox(
         'Invalid Hostname',
         'A hostname is required.'
@@ -1725,56 +1906,17 @@ async function showAddHostEntryDialog(): Promise<void> {
       return;
     }
     
-    // Ask if the entry should be enabled
-    const enabledResult = await dialog.showMessageBox({
-      type: 'question',
-      title: 'Enable Entry',
-      message: 'Should this entry be enabled?',
-      buttons: ['No (Disabled)', 'Yes (Enabled)'],
-      defaultId: 1
-    });
-    const enabled = enabledResult.response === 1;
-    
-    // If there are groups, ask the user to select one
-    let groupId: string | undefined = undefined;
-    if (groups.length > 0) {
-      const groupSelectResult = await dialog.showMessageBox({
-        type: 'question',
-        title: 'Assign to Group',
-        message: 'Would you like to assign this entry to a group?',
-        buttons: ['Skip', 'Select Group'],
-        defaultId: 1
-      });
-      
-      if (groupSelectResult.response === 1) {
-        // Show a list of groups
-        const groupOptions = ['None'].concat(groups.map(g => g.name));
-        const groupListResult = await dialog.showMessageBox({
-          type: 'question',
-          title: 'Select Group',
-          message: 'Select a group for this entry:',
-          buttons: groupOptions,
-          cancelId: 0
-        });
-        
-        // If user selected a group (not "None")
-        if (groupListResult.response > 0) {
-          // Subtract 1 because "None" was added at the beginning
-          groupId = groups[groupListResult.response - 1].id;
-        }
-      }
-    }
+    console.log('Creating host entry with data:', formData);
     
     // Create the host entry
     const newEntry: Omit<HostEntry, 'lineNumber' | 'raw'> = {
-      ip,
-      hostname: hostname.trim(),
-      enabled,
+      ip: formData.ip,
+      hostname: formData.hostname.trim(),
+      enabled: formData.enabled,
       aliases: [],
       comment: ''
     };
     
-    // Add the entry to the hosts file
     if (!parsedHostsFile) {
       parsedHostsFile = await hostsFileParser.parseHostsFile();
     }
@@ -1791,8 +1933,8 @@ async function showAddHostEntryDialog(): Promise<void> {
     );
     
     // If an entry was successfully added and a group was selected, assign the entry to the group
-    if (addedEntry && groupId) {
-      await groupManager.assignEntriesToGroup(groupId, [addedEntry]);
+    if (addedEntry && formData.groupId) {
+      await groupManager.assignEntriesToGroup(formData.groupId, [addedEntry]);
     }
     
     // Update the tray menu to show the new entry
@@ -1802,7 +1944,7 @@ async function showAddHostEntryDialog(): Promise<void> {
     dialog.showMessageBox({
       type: 'info',
       title: 'Host Entry Added',
-      message: `Successfully added entry: ${hostname} (${ip})`
+      message: `Successfully added entry: ${newEntry.hostname} (${newEntry.ip})`
     });
     
   } catch (error) {

@@ -30,6 +30,15 @@ let appConfig: AppConfiguration;
 // Flag to indicate whether the application is quitting
 let willQuit = false;
 
+// Helper function to get the correct asset path in both dev and production
+function getAssetPath(...paths: string[]): string {
+  const RESOURCES_PATH = app.isPackaged
+    ? path.join(process.resourcesPath, 'assets')
+    : path.join(__dirname, '..', 'assets');
+    
+  return path.join(RESOURCES_PATH, ...paths);
+}
+
 export const createWindow = () => {
   // Create the browser window.
   mainWindow = new BrowserWindow({
@@ -93,8 +102,8 @@ export const createTray = () => {
       
       // Define icon paths - macOS needs special handling for menu bar icons
       const iconPaths = [
-        path.resolve(app.getAppPath(), 'assets/icons/trayMenu.png' ),
-        path.resolve(app.getAppPath(), 'assets/icons/trayMenu2x.png')
+        getAssetPath('icons/trayMenu.png'),
+        getAssetPath('icons/trayMenu2x.png')
       ];
       
       // Try to find a valid icon file
@@ -132,20 +141,43 @@ export const createTray = () => {
       }
     } else if (process.platform === 'win32') {
       // Use ICO for Windows
-      const iconPath = path.join(__dirname, '../assets/icons/icon.ico');
-      tray = new Tray(iconPath);
+      const iconPath = getAssetPath('icons', 'icon.ico');
+      console.log(`Loading Windows tray icon from: ${iconPath}`);
+      
+      // Check if the file exists before trying to load it
+      if (fs.existsSync(iconPath)) {
+        tray = new Tray(iconPath);
+      } else {
+        // Fallback to a different icon if ICO not found
+        const fallbackPaths = [
+          getAssetPath('icons', '32x32.png'),
+          getAssetPath('icons', '16x16.png')
+        ];
+        
+        let iconFound = false;
+        for (const fbPath of fallbackPaths) {
+          if (fs.existsSync(fbPath)) {
+            console.log(`Using fallback icon: ${fbPath}`);
+            tray = new Tray(fbPath);
+            iconFound = true;
+            break;
+          }
+        }
+        
+        if (!iconFound) {
+          console.log("No icon found, creating empty icon");
+          const emptyIcon = nativeImage.createEmpty();
+          tray = new Tray(emptyIcon);
+        }
+      }
     } else {
       // Use PNG for Linux and other platforms
       // Try multiple potential paths to find a working icon
       const iconPaths = [
-        path.join(__dirname, '../assets/icons/48x48.png'),
-        path.join(app.getAppPath(), 'assets/icons/48x48.png'),
-        path.join(process.resourcesPath, 'assets/icons/48x48.png'),
-        path.join(process.resourcesPath, 'app/assets/icons/48x48.png'),
-        path.join(process.resourcesPath, 'app.asar/assets/icons/48x48.png'),
-        path.join(__dirname, '../assets/icons/64x64.png'),
-        path.join(__dirname, '../assets/icons/32x32.png'),
-        path.join(__dirname, '../assets/icons/16x16.png')
+        getAssetPath('icons/48x48.png'),
+        getAssetPath('icons/64x64.png'),
+        getAssetPath('icons/32x32.png'),
+        getAssetPath('icons/16x16.png')
       ];
       
       let trayIcon = null;
@@ -777,7 +809,7 @@ app.on('before-quit', () => {
 // Linux requires explicit setting of the app icon using different method
 if (process.platform === 'linux') {
   // Use appropriate icon for Linux platform
-  const iconPath = path.join(__dirname, '../assets/icons/512x512.png');
+  const iconPath = getAssetPath('icons/512x512.png');
   if (mainWindow) {
     // Fix async error - use synchronous icon setting method
     mainWindow.setIcon(nativeImage.createFromPath(iconPath));

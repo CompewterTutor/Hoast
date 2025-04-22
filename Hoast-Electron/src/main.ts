@@ -93,15 +93,6 @@ export const createTray = () => {
       
       // Define icon paths - macOS needs special handling for menu bar icons
       const iconPaths = [
-        // path.join(__dirname, '../assets/icons/16x16.png'),
-        // path.resolve(app.getAppPath(), 'assets/icons/16x16.png'),
-        // path.join(app.getAppPath(), '1x/HoastTrayIcon.png'),
-        // path.join(app.getAppPath(), 'assets/1x/HoastTrayIcon.png'),
-        // path.join(__dirname, '../assets/1x/HoastTrayIcon.png'),
-        // path.join(__dirname, '../assets/icons/icon.png'),
-        // path.resolve(app.getAppPath(), 'assets/icons/icon.png'),
-        // path.join(__dirname, '../assets/icons/icon.icns'),
-        // path.resolve(app.getAppPath(), 'assets/icons/icon.icns')
         path.resolve(app.getAppPath(), 'assets/icons/trayMenu.png' ),
         path.resolve(app.getAppPath(), 'assets/icons/trayMenu2x.png')
       ];
@@ -145,8 +136,41 @@ export const createTray = () => {
       tray = new Tray(iconPath);
     } else {
       // Use PNG for Linux and other platforms
-      const iconPath = path.join(__dirname, '../assets/icons/48x48.png');
-      tray = new Tray(iconPath);
+      // Try multiple potential paths to find a working icon
+      const iconPaths = [
+        path.join(__dirname, '../assets/icons/48x48.png'),
+        path.join(app.getAppPath(), 'assets/icons/48x48.png'),
+        path.join(process.resourcesPath, 'assets/icons/48x48.png'),
+        path.join(process.resourcesPath, 'app/assets/icons/48x48.png'),
+        path.join(process.resourcesPath, 'app.asar/assets/icons/48x48.png'),
+        path.join(__dirname, '../assets/icons/64x64.png'),
+        path.join(__dirname, '../assets/icons/32x32.png'),
+        path.join(__dirname, '../assets/icons/16x16.png')
+      ];
+      
+      let trayIcon = null;
+      
+      // Try each path until we find one that exists
+      for (const iconPath of iconPaths) {
+        try {
+          console.log(`Trying icon path: ${iconPath}`);
+          if (fs.existsSync(iconPath)) {
+            console.log(`Found icon at: ${iconPath}`);
+            trayIcon = nativeImage.createFromPath(iconPath);
+            break;
+          }
+        } catch (e) {
+          console.log(`Failed to load icon from ${iconPath}: ${e}`);
+        }
+      }
+      
+      if (!trayIcon) {
+        // If no icon found, create an empty one
+        console.log("No icon found, creating empty icon");
+        trayIcon = nativeImage.createEmpty();
+      }
+      
+      tray = new Tray(trayIcon);
     }
 
     // Set initial menu immediately to ensure there's always a menu
@@ -831,6 +855,14 @@ async function addHostEntryWithPermissions(parsedFile: ParsedHostsFile, newEntry
     
     if (result.success) {
       console.log(`Successfully added host entry: ${newEntry.hostname}`);
+      
+      // Reload hosts file after successful operation
+      parsedHostsFile = await hostsFileParser.parseHostsFile();
+      
+      // Explicitly update the tray menu to reflect the changes
+      // This ensures the menu refreshes on all platforms including Linux
+      updateTrayMenu();
+      
       showHostsFileSuccess(`Successfully added host entry: ${newEntry.hostname}`);
       
       // Check if we should flush DNS cache

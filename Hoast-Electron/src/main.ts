@@ -93,15 +93,17 @@ export const createTray = () => {
       
       // Define icon paths - macOS needs special handling for menu bar icons
       const iconPaths = [
-        path.join(__dirname, '../assets/icons/16x16.png'),
-        path.resolve(app.getAppPath(), 'assets/icons/16x16.png'),
-        path.join(app.getAppPath(), '1x/HoastTrayIconTemplate.png'),
-        path.join(app.getAppPath(), 'assets/1x/HoastTrayIconTemplate.png'),
-        path.join(__dirname, '../assets/1x/HoastTrayIconTemplate.png'),
-        path.join(__dirname, '../assets/icons/icon.png'),
-        path.resolve(app.getAppPath(), 'assets/icons/icon.png'),
-        path.join(__dirname, '../assets/icons/icon.icns'),
-        path.resolve(app.getAppPath(), 'assets/icons/icon.icns')
+        // path.join(__dirname, '../assets/icons/16x16.png'),
+        // path.resolve(app.getAppPath(), 'assets/icons/16x16.png'),
+        // path.join(app.getAppPath(), '1x/HoastTrayIcon.png'),
+        // path.join(app.getAppPath(), 'assets/1x/HoastTrayIcon.png'),
+        // path.join(__dirname, '../assets/1x/HoastTrayIcon.png'),
+        // path.join(__dirname, '../assets/icons/icon.png'),
+        // path.resolve(app.getAppPath(), 'assets/icons/icon.png'),
+        // path.join(__dirname, '../assets/icons/icon.icns'),
+        // path.resolve(app.getAppPath(), 'assets/icons/icon.icns')
+        path.resolve(app.getAppPath(), 'assets/icons/trayMenu.png' ),
+        path.resolve(app.getAppPath(), 'assets/icons/trayMenu2x.png')
       ];
       
       // Try to find a valid icon file
